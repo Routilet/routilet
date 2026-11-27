@@ -31,7 +31,7 @@ function render(){
   r.launch.setAttribute('aria-label',app.name+' '+v.action);
   r.update.hidden=!v.update;r.update.disabled=s.busy;r.update.title='更新至 v'+app.available;
   r.more.hidden=!v.manage;r.more.disabled=s.busy;r.more.title='管理 '+app.name;r.more.setAttribute('aria-label','管理 '+app.name);
-  r.row.classList.toggle('unavailable',!v.enabled);
+  r.row.classList.toggle('unavailable',!v.enabled&&!(app.component&&app.installed&&!app.disabled&&!app.preferenceError));
   if(!v.manage&&r.more.getAttribute('aria-expanded')==='true')closeMenu();
  }
  for(const [id,r] of rows){if(!appById(id)){r.row.remove();rows.delete(id)}}
@@ -74,7 +74,8 @@ async function check(){
 function manage(a,button){
  const actions=[];
  if(a.installed&&!a.disabled&&!a.preferenceError){
-  actions.push({label:'创建桌面快捷方式',run:()=>perform(a,'shortcut')},{separator:true},{label:'修复安装',run:()=>confirmOperation(a,'repair')});
+  if(!a.component)actions.push({label:'创建桌面快捷方式',run:()=>perform(a,'shortcut')},{separator:true});
+  actions.push({label:'修复安装',run:()=>confirmOperation(a,'repair')});
   if(a.previous)actions.push({label:'回退至 v'+a.previous,run:()=>confirmOperation(a,'rollback')});
   actions.push({separator:true});
  }
@@ -117,12 +118,12 @@ async function perform(a,mode){
   else if(mode==='uninstall'||mode==='shortcut')await call(mode==='uninstall'?'Uninstall':'Shortcut',a.id);
   // Always reconcile persisted state before launching, including first install.
   task.installing=false;task.progress=null;clearTimeout(task.timer);
-  if(mode==='install'||mode==='launch'){
+  if((mode==='install'||mode==='launch')&&!a.component){
    task.label='正在打开 '+a.name+'…';renderTask();
    if(mode==='install')await local();
    await call('Launch',a.id);await call('Close');closing=true;s.finishTask(task);render();
   }else{
-   const done={update:'已更新',repair:'已修复',rollback:'已回退',uninstall:'已卸载',shortcut:'快捷方式已创建',enable:'已启用',disable:'已禁用',self:'新版已准备就绪，退出后重新打开'};
+   const done={install:'已安装，可在 Companion 中使用',update:'已更新',repair:'已修复',rollback:'已回退',uninstall:'已卸载',shortcut:'快捷方式已创建',enable:'已启用',disable:'已禁用',self:'新版已准备就绪，退出后重新打开'};
    feedback(mode==='self'?done.self:a.name+' '+done[mode],mode==='self');
   }
  }catch(e){operationError=e}

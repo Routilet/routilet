@@ -37,6 +37,16 @@ func selfTest()error{
   }
   fmt.Println("PASS: Companion "+channel+" native manifest and hash",cv)
  }
+ // Actual published beta, installed using the same manager and channel.
+ adapter,_:=spec("accoding-adapter")
+ if err=m.setChannel(testChannel);err!=nil{return err}
+ av,err:=m.remote(adapter);if err!=nil{return fmt.Errorf("Adapter registry: %w",err)}
+ if err=m.installExpected(adapter.ID,false,av);err!=nil{return fmt.Errorf("Adapter install: %w",err)}
+ if err=m.adapterAvailable(adapter.ID);err!=nil{return err}
+ var adapterOut strings.Builder
+ if err=m.callAdapter(adapter.ID,strings.NewReader("{\"id\":1,\"method\":\"capabilities\",\"params\":{\"protocol\":\"routilet-oj-adapter/1\"}}\n"),&adapterOut);err!=nil{return err}
+ if !strings.Contains(adapterOut.String(),"routilet-oj-adapter/1"){return errors.New("Adapter capability response invalid")}
+ fmt.Println("PASS: actual Adapter install, verified manifest and protected stdio",av)
  if err=m.setChannel(stableChannel);err!=nil{return err}
  // Observer may not be published yet. Only report the actual result.
  observer,_:=spec("observer")
