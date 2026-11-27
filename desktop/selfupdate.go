@@ -7,12 +7,11 @@ import(
  "os"
  "os/exec"
  "path/filepath"
- "runtime"
  "strings"
  "time"
 )
 
-var buildVersion="0.1.3"
+var buildVersion="0.1.4"
 // Set only for the never-published CI fixture. Production builds leave empty.
 var fixtureMode=""
 var managerSpec=appSpec{"routilet","Routilet","应用启动台","@routilet/routilet","latest"}
@@ -39,8 +38,8 @@ func(m *Manager)selfInfo()SelfInfo{
 func(m *Manager)setBootstrap(path string)error{
  if !filepath.IsAbs(path){return errors.New("无效启动入口")}
  st,e:=os.Stat(path);if e!=nil{return e};if !st.Mode().IsRegular(){return errors.New("启动入口不是文件")}
- m.bootstrap=path;name:="pnpm";if runtime.GOOS=="windows"{name+=".exe"}
- m.pnpm=filepath.Join(filepath.Dir(path),name)
+ m.bootstrap=path
+ m.pnpm=bundledPNPM(path)
  return nil
 }
 func probeManager(ctx context.Context,entry,version string)error{

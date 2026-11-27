@@ -4,7 +4,7 @@ import {$,element,ask} from './dialogs.js';
 import {openMenu,closeMenu} from './menu.js';
 const call=(method,...args)=>Call.ByName('main.Desktop.'+method,...args);
 const s=new Session(),rows=new Map();
-const section=$('#apps'),refresh=$('#refresh'),selfAction=$('#self-action'),settings=$('#settings'),data=$('#data');
+const section=$('#apps'),refresh=$('#refresh'),selfAction=$('#self-action'),settings=$('#settings');
 const settingsDialog=$('#settings-dialog'),channelSelect=$('#release-channel'),channelNote=$('#channel-note'),clean=$('#clean'),settingsClose=$('#settings-close');
 const taskPanel=$('#task'),taskStage=$('#task-stage'),taskDetail=$('#task-detail'),taskBar=$('#task-bar'),taskCancel=$('#task-cancel');
 const checkStatus=$('#check-status'),notice=$('#notice'),version=$('#version');
@@ -27,7 +27,7 @@ function render(){
  for(const app of s.apps){
   const r=rows.get(app.id)||createRow(app.id),v=appView(app);
   r.name.textContent=app.name;r.desc.textContent=v.description;r.indicator.textContent=v.action;
-  r.launch.disabled=s.busy||!v.enabled;r.launch.title=app.localError||app.note||v.action+' '+app.name;
+  r.launch.disabled=s.busy||!v.enabled;r.launch.title=app.preferenceError||app.localError||app.note||v.action+' '+app.name;
   r.launch.setAttribute('aria-label',app.name+' '+v.action);
   r.update.hidden=!v.update;r.update.disabled=s.busy;r.update.title='更新至 v'+app.available;
   r.more.hidden=!v.manage;r.more.disabled=s.busy;r.more.title='管理 '+app.name;r.more.setAttribute('aria-label','管理 '+app.name);
@@ -40,9 +40,9 @@ function render(){
  selfAction.hidden=!v.action;selfAction.textContent=v.label;selfAction.title=v.title||v.label;selfAction.disabled=s.busy;
  selfAction.onclick=()=>{if(s.busy)return;const current=selfView(s.self);if(current.action==='update')void perform({id:'routilet',name:'Routilet',available:s.self.available},'self');else if(current.action==='exit')void exitForUpdate()};
  refresh.disabled=s.busy||s.checking;refresh.classList.toggle('checking',s.checking);refresh.setAttribute('aria-busy',String(s.checking));
- data.disabled=s.busy;settings.disabled=s.busy||settingsOpening;
+ settings.disabled=s.busy||settingsOpening;
  checkStatus.textContent=checkSummary(s.apps,s.self,s.checking);
- const problems=[...s.apps.filter(a=>a.releaseStatus==='error').map(a=>a.name+': '+a.note),...(s.self?.releaseStatus==='error'?['Routilet: '+s.self.note]:[])];
+ const problems=[...s.apps.filter(a=>a.preferenceError||(!a.disabled&&a.releaseStatus==='error')).map(a=>a.name+': '+(a.preferenceError||a.note)),...(s.self?.releaseStatus==='error'?['Routilet: '+s.self.note]:[])];
  checkStatus.title=problems.join('\n')||checkStatus.textContent;
  checkStatus.classList.toggle('check-error',problems.length>0);checkStatus.disabled=!problems.length;
  checkStatus.onclick=()=>{if(problems.length&&!s.busy)void ask({heading:'更新检查未完成',text:'无法确认部分软件的最新版本。已安装的应用仍可离线打开。',technical:problems.join('\n')})};
@@ -62,7 +62,7 @@ async function check(){
  render();
  const updateApps=async()=>{
   try{const apps=await call('Check');if(s.current(stamp)){s.apps=apps;render()}}
-  catch(e){if(s.current(stamp)){s.apps=s.apps.map(a=>a.releaseStatus==='development'?a:{...a,releaseStatus:'error',available:'',update:false,note:errorText(e).raw});render()}}
+  catch(e){if(s.current(stamp)){s.apps=s.apps.map(a=>a.disabled||a.preferenceError||a.releaseStatus==='development'?a:{...a,releaseStatus:'error',available:'',update:false,note:errorText(e).raw});render()}}
  };
  const updateSelf=async()=>{
   try{const info=await call('SelfInfo');if(s.current(stamp)){s.self=info;render()}}
@@ -72,9 +72,15 @@ async function check(){
  if(s.finishCheck(stamp))render();
 }
 function manage(a,button){
- const actions=[{label:'创建桌面快捷方式',run:()=>perform(a,'shortcut')},{separator:true},{label:'修复安装',run:()=>confirmOperation(a,'repair')}];
- if(a.previous)actions.push({label:'回退至 v'+a.previous,run:()=>confirmOperation(a,'rollback')});
- actions.push({separator:true},{label:'卸载',danger:true,run:()=>confirmOperation(a,'uninstall')});openMenu(button,actions);
+ const actions=[];
+ if(a.installed&&!a.disabled&&!a.preferenceError){
+  actions.push({label:'创建桌面快捷方式',run:()=>perform(a,'shortcut')},{separator:true},{label:'修复安装',run:()=>confirmOperation(a,'repair')});
+  if(a.previous)actions.push({label:'回退至 v'+a.previous,run:()=>confirmOperation(a,'rollback')});
+  actions.push({separator:true});
+ }
+ actions.push({label:a.disabled||a.preferenceError?'启用':'禁用',run:()=>perform(a,a.disabled||a.preferenceError?'enable':'disable')});
+ if(a.installed)actions.push({separator:true},{label:'卸载',danger:true,run:()=>confirmOperation(a,'uninstall')});
+ openMenu(button,actions);
 }
 async function confirmOperation(a,mode){
  const labels={repair:'修复',rollback:'回退',uninstall:'卸载'};
@@ -98,13 +104,14 @@ taskCancel.onclick=async()=>{
 };
 async function perform(a,mode){
  const installing=['install','update','repair','self'].includes(mode);
- const verbs={install:'安装',update:'更新',repair:'修复',self:'更新',launch:'打开',rollback:'回退',uninstall:'卸载',shortcut:'创建快捷方式'};
+ const verbs={install:'安装',update:'更新',repair:'修复',self:'更新',launch:'打开',rollback:'回退',uninstall:'卸载',shortcut:'创建快捷方式',enable:'启用',disable:'禁用'};
  const task=s.startTask(a.id,'正在'+verbs[mode]+' '+a.name+'…',installing);if(!task)return;
  closeMenu();feedback('');render();let operationError=null,installed=false,closing=false;
  if(installing)poll(task);
  try{
   if(mode==='self')await call('UpdateSelfVersion',a.available);
   else if(mode==='install'||mode==='update'){await call('InstallVersion',a.id,a.available);installed=mode==='install'}
+  else if(mode==='enable'||mode==='disable')await call('SetDisabled',a.id,mode==='disable');
   else if(mode==='repair')await call('Repair',a.id);
   else if(mode==='rollback')await call('RollbackTo',a.id,a.previous);
   else if(mode==='uninstall'||mode==='shortcut')await call(mode==='uninstall'?'Uninstall':'Shortcut',a.id);
@@ -115,7 +122,7 @@ async function perform(a,mode){
    if(mode==='install')await local();
    await call('Launch',a.id);await call('Close');closing=true;s.finishTask(task);render();
   }else{
-   const done={update:'已更新',repair:'已修复',rollback:'已回退',uninstall:'已卸载',shortcut:'快捷方式已创建',self:'新版已准备就绪，退出后重新打开'};
+   const done={update:'已更新',repair:'已修复',rollback:'已回退',uninstall:'已卸载',shortcut:'快捷方式已创建',enable:'已启用',disable:'已禁用',self:'新版已准备就绪，退出后重新打开'};
    feedback(mode==='self'?done.self:a.name+' '+done[mode],mode==='self');
   }
  }catch(e){operationError=e}
@@ -139,7 +146,7 @@ async function exitForUpdate(){
  try{await call('Close')}catch(e){void report('退出失败',e)}
 }
 async function openData(){if(s.busy)return;try{await call('OpenData')}catch(e){if(settingsDialog.open)channelNote.textContent='无法打开数据目录：'+errorText(e).summary;else void report('无法打开数据目录',e)}}
-refresh.onclick=()=>void check();data.onclick=()=>void openData();$('#settings-data').onclick=()=>void openData();
+refresh.onclick=()=>void check();$('#settings-data').onclick=()=>void openData();
 function renderSettings(){
  channelSelect.value=channelLoaded?channel:'';channelSelect.disabled=s.setting||!channelLoaded;
  settingsClose.disabled=s.setting;clean.disabled=s.setting||settingsOpening;$('#settings-data').disabled=s.setting||settingsOpening;

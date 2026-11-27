@@ -16,3 +16,6 @@ GitHub Release 提供初始归档，npm 官方 Registry 提供后续独立应用
 
 ## 本地应用调用
 见 [应用调用协议 v1](app-calls.md)。复用激活记录、原生清单和运行标记，新增无界面参数透传与有界能力查询；不承载业务协议。Companion 使用新包 `@routilet/companion`，不安装旧 Accoding 包。
+
+## 应用偏好与分发
+应用禁用标记独立于激活记录，在操作锁下写入；禁用跳过检查并拒绝新的管理器启动、查询及安装类操作，保留运行实例及安装数据。Windows 初始 ZIP 将 pnpm 移至 runtime/，仍接受旧同级布局；macOS 使用单 APP ZIP。Manager npm 协议不变。

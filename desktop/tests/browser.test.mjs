@@ -21,10 +21,10 @@ async function setup(t,{installed='',available='0.2.0',releaseStatus='available'
  t.after(async()=>{await browser.close();await new Promise(r=>server.close(r))});
  const page=await browser.newPage({viewport:{width:420,height:300}});const errors=[];page.on('pageerror',e=>errors.push(e.message));
  await page.addInitScript(({installed,available,releaseStatus,selfUpdate,launchFails,holdCheck})=>{
-  const state={installed,available,releaseStatus,selfUpdate,launchFails,holdCheck,channel:'stable',pending:false,calls:[],progress:null,finish:null,held:null};
+  const state={installed,available,releaseStatus,selfUpdate,launchFails,holdCheck,channel:'stable',pending:false,disabled:false,calls:[],progress:null,finish:null,held:null};
   window.fixture=state;
-  const local=()=>[{id:'companion',name:'Companion',description:'代码管理',releaseStatus:'development',installed:''},{id:'observer',name:'Observer',description:'程序运行观察',installed:state.installed,previous:state.installed?'0.1.9':'',releaseStatus:'unknown',available:''}];
-  const checked=()=>local().map(a=>a.id==='companion'?a:{...a,releaseStatus:state.releaseStatus,available:state.releaseStatus==='available'?state.available:'',update:!!a.installed&&a.installed!==state.available&&state.releaseStatus==='available',note:state.releaseStatus==='error'?'软件源 HTTP 503':''});
+  const local=()=>[{id:'companion',name:'Companion',description:'代码管理',releaseStatus:'development',installed:''},{id:'observer',name:'Observer',description:'程序运行观察',installed:state.installed,disabled:state.disabled,previous:state.installed?'0.1.9':'',releaseStatus:'unknown',available:''}];
+  const checked=()=>local().map(a=>a.id==='companion'?a:state.disabled?{...a,releaseStatus:'disabled'}:{...a,releaseStatus:state.releaseStatus,available:state.releaseStatus==='available'?state.available:'',update:!!a.installed&&a.installed!==state.available&&state.releaseStatus==='available',note:state.releaseStatus==='error'?'软件源 HTTP 503':''});
   const self=()=>({version:'0.1.2',releaseStatus:'unknown',pending:state.pending,pendingVersion:state.pending?'0.1.3':''});
   window.__bridge=async(method,...args)=>{
    state.calls.push([method,...args]);
@@ -36,6 +36,7 @@ async function setup(t,{installed='',available='0.2.0',releaseStatus='available'
     return result;
    }
    if(method==='SelfInfo')return {...self(),releaseStatus:'available',available:'0.1.3',update:state.selfUpdate&&!state.pending};
+   if(method==='SetDisabled'){state.disabled=args[1];return}
    if(method==='Channel')return state.channel;
    if(method==='SetChannel'){state.channel=args[0];state.releaseStatus='available';return}
    if(method==='Progress')return state.progress||{};
@@ -108,4 +109,14 @@ test('self update uses common progress and cancel; pending survives refresh',asy
  await p.evaluate(()=>fixture.finish.resolve());
  await p.getByRole('button',{name:'退出并应用更新'}).waitFor();
  assert.equal(await p.getByRole('button',{name:'退出并应用更新'}).isEnabled(),true);
+});
+
+test('disable and enable without uninstall; data directory only in settings',async t=>{
+ const p=await setup(t,{installed:'0.2.0',available:'0.2.1'});
+ await p.getByRole('button',{name:'管理 Observer'}).click();await p.getByRole('menuitem',{name:'禁用',exact:true}).click();
+ const disabled=p.getByRole('button',{name:'Observer 已禁用'});await disabled.waitFor();assert.equal(await disabled.isDisabled(),true);
+ await p.getByRole('button',{name:'管理 Observer'}).click();await p.getByRole('menuitem',{name:'启用',exact:true}).click();
+ await p.getByRole('button',{name:'Observer 打开'}).waitFor();assert.equal(await p.locator('#data').count(),0);
+ await p.getByRole('button',{name:'设置',exact:true}).click();await p.getByRole('button',{name:'打开数据目录'}).click();
+ await p.waitForFunction(()=>fixture.calls.some(c=>c[0]==='OpenData'));
 });

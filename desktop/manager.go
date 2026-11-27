@@ -40,6 +40,8 @@ type AppState struct {
  Previous string `json:"previous"`
  ReleaseStatus string `json:"releaseStatus"`
  LocalError string `json:"localError"`
+ Disabled bool `json:"disabled"`
+ PreferenceError string `json:"preferenceError"`
  Note string `json:"note"`
 }
 type Manager struct {
@@ -59,8 +61,7 @@ type nativeManifest struct {
 func newManager() (*Manager,error) {
  exe,err:=os.Executable();if err!=nil{return nil,err}
  config,err:=os.UserConfigDir();if err!=nil{return nil,err}
- name:="pnpm";if runtime.GOOS=="windows"{name+=".exe"}
- return &Manager{root:filepath.Join(config,"Routilet"),bootstrap:exe,pnpm:filepath.Join(filepath.Dir(exe),name),client:&http.Client{Timeout:8*time.Second}},nil
+ return &Manager{root:filepath.Join(config,"Routilet"),bootstrap:exe,pnpm:bundledPNPM(exe),client:&http.Client{Timeout:8*time.Second}},nil
 }
 func spec(id string)(appSpec,error){if id=="routilet"{return managerSpec,nil};for _,s:=range catalog{if s.ID==id{return s,nil}};return appSpec{},errors.New("未知应用")}
 func (m *Manager) appDir(s appSpec)string{if s.ID=="routilet"{return filepath.Join(m.root,"manager")};return filepath.Join(m.root,"apps",s.ID)}
@@ -107,6 +108,9 @@ func (m *Manager) list()[]AppState{
    current,err:=m.active(s)
    if err==nil{a.Installed=current.Version;a.Rollback=current.Previous!="";a.Previous=current.PreviousVersion}else if !os.IsNotExist(err){a.LocalError="安装记录异常"}
   }
+  disabled,e:=m.disabled(s);a.Disabled=disabled
+  if e!=nil{a.PreferenceError=e.Error()}
+  if a.Disabled||a.PreferenceError!=""{a.ReleaseStatus="disabled"}
   out=append(out,a)
  }
  return out
@@ -114,7 +118,7 @@ func (m *Manager) list()[]AppState{
 func (m *Manager) check()[]AppState{
  out:=m.list()
  for i,s:=range catalog{
-  if s.Package==""{continue}
+  if s.Package==""||out[i].Disabled||out[i].PreferenceError!=""{continue}
   v,err:=m.remote(s)
   if err!=nil{
    out[i].Note=err.Error()
@@ -154,16 +158,19 @@ func within(root,p string)bool{
  return err==nil&&r!=".."&&!strings.HasPrefix(r,".."+string(os.PathSeparator))
 }
 func nativeEntry(snapshot string,s appSpec,version string)(string,error){
- root,err:=filepath.EvalSymlinks(snapshot);if err!=nil{return "",err}
- pkg,err:=filepath.EvalSymlinks(filepath.Join(root,"node_modules",filepath.FromSlash(s.Package)));if err!=nil{return "",err}
+ root,err:=filepath.EvalSymlinks(snapshot);if err!=nil{return "",fmt.Errorf("解析安装目录 %s: %w",snapshot,err)}
+ pkgPath:=filepath.Join(root,"node_modules",filepath.FromSlash(s.Package))
+ pkg,err:=filepath.EvalSymlinks(pkgPath);if err!=nil{return "",fmt.Errorf("解析软件包目录 %s: %w",pkgPath,err)}
  if !within(root,pkg){return "",errors.New("软件包路径超出安装目录")}
- b,err:=os.ReadFile(filepath.Join(pkg,"manifest.json"));if err!=nil{return "",err}
+ manifestPath:=filepath.Join(pkg,"manifest.json")
+ b,err:=os.ReadFile(manifestPath);if err!=nil{return "",fmt.Errorf("读取应用清单 %s: %w",manifestPath,err)}
  var manifest nativeManifest
  if err=json.Unmarshal(b,&manifest);err!=nil{return "",err}
  if manifest.SchemaVersion!=1||manifest.Version!=version{return "",errors.New("应用清单不兼容")}
  platform,ok:=manifest.Platforms[target()]
  if !ok||platform.Executable==""||filepath.IsAbs(platform.Executable)||!filepath.IsLocal(filepath.FromSlash(platform.Executable)){return "",errors.New("当前平台没有有效入口")}
- entry,err:=filepath.EvalSymlinks(filepath.Join(pkg,filepath.FromSlash(platform.Executable)));if err!=nil{return "",err}
+ entryPath:=filepath.Join(pkg,filepath.FromSlash(platform.Executable))
+ entry,err:=filepath.EvalSymlinks(entryPath);if err!=nil{return "",fmt.Errorf("解析原生入口 %s: %w",entryPath,err)}
  if !within(pkg,entry){return "",errors.New("可执行文件路径超出软件包")}
  f,err:=os.Open(entry);if err!=nil{return "",err};defer f.Close()
  st,err:=f.Stat();if err!=nil{return "",err};if !st.Mode().IsRegular(){return "",errors.New("入口不是普通文件")}
@@ -176,6 +183,8 @@ func (m *Manager) pnpmCommand(dir string,args ...string)(string,error){
 }
 func (m *Manager) pnpmContext(parent context.Context,job *installJob,dir string,args ...string)(string,error){
  ctx,cancel:=context.WithTimeout(parent,5*time.Minute);defer cancel()
+ if err:=checkPNPM(m.pnpm);err!=nil{return "",err}
+ if st,err:=os.Stat(dir);err!=nil{return "",fmt.Errorf("pnpm 工作目录 %s: %w",dir,err)}else if !st.IsDir(){return "",fmt.Errorf("pnpm 工作路径不是目录: %s",dir)}
  cmd:=exec.CommandContext(ctx,m.pnpm,args...);cmd.Dir=dir;hideChild(cmd)
  for _,kv:=range os.Environ(){
   k:=strings.ToLower(strings.SplitN(kv,"=",2)[0])
@@ -188,7 +197,7 @@ func (m *Manager) pnpmContext(parent context.Context,job *installJob,dir string,
  cmd.Stdout=w;cmd.Stderr=w
  err:=cmd.Run();w.finish()
  if parent.Err()!=nil{return "",parent.Err()}
- if err!=nil{return output.String(),fmt.Errorf("pnpm: %w\n%s",err,output.String())}
+ if err!=nil{return output.String(),fmt.Errorf("pnpm %s 失败（程序: %s；工作目录: %s）: %w\n%s",args[0],m.pnpm,dir,err,output.String())}
  return strings.TrimSpace(output.String()),nil
 }
 func (m *Manager) setup()error{return m.setupContext(context.Background())}
@@ -209,6 +218,7 @@ func (m *Manager) installExpected(id string,repair bool,expected string)error{
  m.mu.Lock();defer m.mu.Unlock()
  ctx:=job.ctx
  release,err:=m.operationLock();if err!=nil{return err};defer release()
+ if err=m.requireEnabled(s);err!=nil{return err}
  old,oldErr:=m.active(s)
  if oldErr!=nil{old=activation{}}
  var version string
@@ -217,17 +227,17 @@ func (m *Manager) installExpected(id string,repair bool,expected string)error{
  if s.ID=="routilet"&&!repair&&(!newer(version,buildVersion)||(oldErr==nil&&!newer(version,old.Version))){return errors.New("Routilet 已是当前版本或新版已准备就绪")}
  if oldErr==nil&&old.Version!=version&&!newer(version,old.Version){return errors.New("当前版本比发行渠道更新，不自动降级")}
  job.stage("准备安装")
- if err=m.setupContext(ctx);err!=nil{return err}
+ if err=m.setupContext(ctx);err!=nil{return fmt.Errorf("准备安装 %s: %w",s.Name,err)}
  dir:=m.appDir(s);if err=os.MkdirAll(dir,0700);err!=nil{return err}
  snap,err:=os.MkdirTemp(dir,"release-");if err!=nil{return err}
  keep:=false;defer func(){if !keep{_ = os.RemoveAll(snap)}}()
  job.stage("解析与下载")
- if err=m.installPackageContext(ctx,job,snap,s.Package,version);err!=nil{return err}
+ if err=m.installPackageContext(ctx,job,snap,s.Package,version);err!=nil{return fmt.Errorf("下载与安装 %s %s: %w",s.Package,version,err)}
  job.stage("校验应用")
- entry,err:=nativeEntry(snap,s,version);if err!=nil{return err}
+ entry,err:=nativeEntry(snap,s,version);if err!=nil{return fmt.Errorf("校验应用 %s %s: %w",s.Name,version,err)}
  if s.ID=="routilet"{if err=probeManager(ctx,entry,version);err!=nil{return err}}
  if err=job.commit();err!=nil{return err}
- if err=atomicJSON(filepath.Join(dir,"activation.json"),activation{Snapshot:filepath.Base(snap),Version:version,Previous:old.Snapshot,PreviousVersion:old.Version});err!=nil{return err}
+ if err=atomicJSON(filepath.Join(dir,"activation.json"),activation{Snapshot:filepath.Base(snap),Version:version,Previous:old.Snapshot,PreviousVersion:old.Version});err!=nil{return fmt.Errorf("激活版本 %s: %w",s.Name,err)}
  keep=true
  if s.ID!="routilet"{_ = m.cleanup(s)}
  return nil
@@ -245,6 +255,7 @@ func (m *Manager) launch(id string)error{
  m.mu.Lock();defer m.mu.Unlock()
  release,err:=m.operationLock();if err!=nil{return err};defer release()
  s,err:=spec(id);if err!=nil{return err}
+ if err=m.requireEnabled(s);err!=nil{return err}
  a,err:=m.active(s);if err!=nil{return err}
  snap:=filepath.Join(m.appDir(s),a.Snapshot)
  if _,err=nativeEntry(snap,s,a.Version);err!=nil{return err}

@@ -19,3 +19,5 @@ Routilet 向原生应用注入 ROUTILET_EXECUTABLE（本次运行的支持协议
 macOS 监督进程改为直接执行经校验的 APP 内部原生入口，而不是 open -n -W，以确保参数、环境和真实退出状态；Wails 窗口激活、Dock 行为和退出需真机验证。Windows 查询隐藏控制台窗口。GUI 调用者在后台执行 --wait，只有明确退出才清理会话；Routilet 不读取、删除或解释业务文件。退出码非零不表示被观察程序运行失败，后者由 Observer UI 管理。
 
 本阶段实现启动协议并启用 Companion catalog（新包 @routilet/companion，拒绝 0.0.0 占位版本），未管理 Exam Kit、未实现 OJ 插件。自动测试使用原生 fixture 验证参数、Unicode 路径、查询、退出状态、卸载期间保护、清理；现有 CI self-test 在安装实际 Observer 后查询其能力。真机跨应用 GUI 联调另行验收。
+
+自 v0.1.4 起，禁用应用拒绝新的启动和查询请求，返回非零状态；已启动进程不被终止。此为用户偏好，不是安全沙箱或旧管理器的访问控制。

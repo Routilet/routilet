@@ -6,6 +6,7 @@ import (
  "io/fs"
  "os"
  "os/exec"
+ "path/filepath"
  "runtime"
  "time"
  "github.com/wailsapp/wails/v3/pkg/events"
@@ -34,6 +35,7 @@ func (d *Desktop) SelfInfo() SelfInfo{return d.manager.selfInfo()}
 func (d *Desktop) SelfLocal() SelfInfo{return d.manager.selfLocal()}
 func (d *Desktop) Channel()(string,error){return d.manager.channel()}
 func (d *Desktop) SetChannel(channel string)error{return d.manager.setChannel(channel)}
+func (d *Desktop) SetDisabled(id string,disabled bool)error{return d.manager.setDisabled(id,disabled)}
 func (d *Desktop) UpdateSelf() error{return d.manager.install("routilet")}
 func (d *Desktop) UpdateSelfVersion(version string)error{return d.manager.installExpected("routilet",false,version)}
 func (d *Desktop) Ready() error{if d.manager.ready==""{return nil};return os.WriteFile(d.manager.ready,[]byte("ready"),0600)}
@@ -66,7 +68,7 @@ func run() error {
  }
  if len(os.Args)==4&&os.Args[1]=="--managed"{
   if err=m.setBootstrap(os.Args[2]);err!=nil{return err};m.ready=os.Args[3]
-  if fixtureMode=="ready"{if err=os.WriteFile(m.ready,[]byte("ready"),0600);err!=nil{return err};time.Sleep(750*time.Millisecond);return nil}
+  if fixtureMode=="ready"{m.root=filepath.Dir(filepath.Dir(m.ready));if err=m.setup();err!=nil{return err};if err=os.WriteFile(m.ready,[]byte("ready"),0600);err!=nil{return err};time.Sleep(750*time.Millisecond);return nil}
  }else if len(os.Args)==1{if m.dispatch(){return nil}}else{return fmt.Errorf("unsupported arguments")}
  d:=&Desktop{manager:m}
  frontend,err:=fs.Sub(assets,"frontend");if err!=nil{return err}

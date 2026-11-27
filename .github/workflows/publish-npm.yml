@@ -141,12 +141,11 @@ jobs:
             unzip -q "out/$ARCHIVE" -d out/extracted
             bin="$(find out/extracted -type f -iname 'pnpm*.exe' | head -n1)"
             test -n "$bin"
-            cp "$bin" out/package/pnpm.exe
-            CGO_ENABLED=0 go build -mod=readonly -tags production -trimpath -ldflags="-s -w -H windowsgui -X main.buildVersion=$VERSION" -o out/package/Routilet.exe .
-            # Console self-test build exercises identical backend.
-            CGO_ENABLED=0 go build -mod=readonly -tags production -trimpath -o out/package/console-test.exe .
-            out/package/console-test.exe --self-test
-            rm out/package/console-test.exe
+            mkdir -p out/package/Routilet/runtime/licenses
+            cp "$bin" out/package/Routilet/runtime/pnpm.exe
+            CGO_ENABLED=0 go build -mod=readonly -tags production -trimpath -ldflags="-s -w -H windowsgui -X main.buildVersion=$VERSION" -o out/package/Routilet/Routilet.exe .
+            cp scripts/user-guide.txt out/package/Routilet/使用说明.txt
+            licenses=out/package/Routilet/runtime/licenses
           else
             test "$(uname -m)" = arm64
             printf '%s  %s\n' "$SHA256" "out/$ARCHIVE" | shasum -a 256 -c -
@@ -163,26 +162,46 @@ jobs:
             CGO_ENABLED=1 MACOSX_DEPLOYMENT_TARGET=12.0 go build -mod=readonly -tags production -trimpath -ldflags="-s -w -X main.buildVersion=$VERSION" -o "$app/Contents/MacOS/Routilet" .
             /usr/libexec/PlistBuddy -c "Set :CFBundleShortVersionString ${VERSION%%-*}" "$app/Contents/Info.plist"
             /usr/libexec/PlistBuddy -c "Set :CFBundleVersion ${VERSION%%-*}" "$app/Contents/Info.plist"
-            codesign --force --sign - "$app"
-            codesign --verify --strict "$app"
-            "$app/Contents/MacOS/Routilet" --self-test
+            licenses="$app/Contents/Resources/licenses"
+            mkdir -p "$licenses"
           fi
           if [[ "$TARGET" == win32-x64 ]]; then export CGO_ENABLED=0; else export CGO_ENABLED=1; fi
-          node scripts/native-notices.mjs out/package/THIRD_PARTY_NOTICES.txt
-          cp README.md out/package/
-          cp ../LICENSE out/package/Routilet-LICENSE
+          node scripts/native-notices.mjs "$licenses/THIRD_PARTY_NOTICES.txt"
+          cp ../LICENSE "$licenses/Routilet-LICENSE"
           while IFS= read -r -d '' notice; do
-            cp "$notice" "out/package/pnpm-$(basename "$notice")"
+            cp "$notice" "$licenses/pnpm-$(basename "$notice")"
           done < <(find out/extracted -type f \( -iname '*license*' -o -iname '*notice*' \) -print0)
-          if ! compgen -G "out/package/pnpm-*LICENSE*" >/dev/null && ! compgen -G "out/package/pnpm-*license*" >/dev/null; then
-            curl --fail --location --retry 3 https://raw.githubusercontent.com/pnpm/pnpm/v12.22.0/LICENSE -o out/package/pnpm-LICENSE
+          if ! compgen -G "$licenses/pnpm-*LICENSE*" >/dev/null && ! compgen -G "$licenses/pnpm-*license*" >/dev/null; then
+            curl --fail --location --retry 3 https://raw.githubusercontent.com/pnpm/pnpm/v12.22.0/LICENSE -o "$licenses/pnpm-LICENSE"
           fi
           if [[ "$TARGET" == win32-x64 ]]; then
-            (cd out/package && powershell.exe -NoProfile -Command "Compress-Archive -Path * -DestinationPath ../routilet-native-win32-x64.zip")
+            python scripts/archive-windows.py out/package/Routilet out/routilet-native-win32-x64.zip
           else
-            tar -czf out/routilet-native-darwin-arm64.tar.gz -C out/package .
+            codesign --force --sign - "$app"
+            codesign --verify --strict "$app"
+            ditto -c -k --sequesterRsrc --keepParent "$app" out/routilet-native-darwin-arm64.zip
           fi
           ls -lh out/routilet-native-*
+      - name: Test extracted final distribution
+        shell: bash
+        env:
+          TARGET: ${{ matrix.target }}
+        run: |
+          set -euo pipefail
+          unpack="out/发行 验证/deep-folder/another folder/用户文件"
+          mkdir -p "$unpack"
+          if [[ "$TARGET" == win32-x64 ]]; then
+            python -m zipfile -e out/routilet-native-win32-x64.zip "$unpack"
+            test -f "$unpack/Routilet/使用说明.txt"
+            test -f "$unpack/Routilet/runtime/pnpm.exe"
+            test ! -e "$unpack/Routilet/pnpm.exe"
+            python scripts/check-distribution.py "$unpack/Routilet/Routilet.exe" "$VERSION"
+          else
+            ditto -x -k out/routilet-native-darwin-arm64.zip "$unpack"
+            codesign --verify --strict "$unpack/Routilet.app"
+            test -x "$unpack/Routilet.app/Contents/MacOS/pnpm"
+            python3 scripts/check-distribution.py "$unpack/Routilet.app/Contents/MacOS/Routilet" "$VERSION"
+          fi
       - name: Test native manager self-update from local npm tarball
         shell: bash
         env:
@@ -192,8 +211,7 @@ jobs:
           if [[ "$TARGET" == win32-x64 ]]; then
             CGO_ENABLED=0 go build -mod=readonly -tags production -trimpath -ldflags="-H windowsgui -X main.buildVersion=9999.0.0 -X main.fixtureMode=ready" -o out/candidate.exe .
             python scripts/package-manager.py --version 9999.0.0 --windows out/candidate.exe --out out/manager-fixture.tgz
-            CGO_ENABLED=0 go build -mod=readonly -tags production -o out/package/self-update-test.exe .
-            out/package/self-update-test.exe --self-update-test out/manager-fixture.tgz 9999.0.0
+            python scripts/check-distribution.py "out/发行 验证/deep-folder/another folder/用户文件/Routilet/Routilet.exe" "$VERSION" out/manager-fixture.tgz
           else
             candidate=out/candidate/Routilet.app
             mkdir -p "$candidate/Contents/MacOS"
@@ -203,7 +221,7 @@ jobs:
             CGO_ENABLED=1 MACOSX_DEPLOYMENT_TARGET=12.0 go build -mod=readonly -tags production -trimpath -ldflags="-X main.buildVersion=9999.0.0 -X main.fixtureMode=ready" -o "$candidate/Contents/MacOS/Routilet" .
             codesign --force --sign - "$candidate"
             python3 scripts/package-manager.py --version 9999.0.0 --macos "$candidate" --out out/manager-fixture.tgz
-            out/package/Routilet.app/Contents/MacOS/Routilet --self-update-test out/manager-fixture.tgz 9999.0.0
+            python3 scripts/check-distribution.py "out/发行 验证/deep-folder/another folder/用户文件/Routilet.app/Contents/MacOS/Routilet" "$VERSION" out/manager-fixture.tgz
           fi
       - name: Stage native manager for release
         shell: bash
@@ -213,21 +231,22 @@ jobs:
           set -euo pipefail
           mkdir -p out/manager-native
           if [[ "$TARGET" == win32-x64 ]]; then
-            cp out/package/Routilet.exe out/manager-native/Routilet.exe
+            cp out/package/Routilet/Routilet.exe out/manager-native/Routilet.exe
+            cp out/package/Routilet/runtime/licenses/THIRD_PARTY_NOTICES.txt out/manager-native/NOTICES.txt
           else
             cp -R out/package/Routilet.app out/manager-native/Routilet.app
             rm out/manager-native/Routilet.app/Contents/MacOS/pnpm
+            cp out/package/Routilet.app/Contents/Resources/licenses/THIRD_PARTY_NOTICES.txt out/manager-native/NOTICES.txt
+            rm -f out/manager-native/Routilet.app/Contents/Resources/licenses/pnpm-*
             codesign --force --sign - out/manager-native/Routilet.app
             codesign --verify --strict out/manager-native/Routilet.app
           fi
-          cp out/package/THIRD_PARTY_NOTICES.txt out/manager-native/NOTICES.txt
           tar -czf "out/manager-native-$TARGET.tar.gz" -C out/manager-native .
       - uses: actions/upload-artifact@v4
         with:
           name: routilet-native-${{ matrix.target }}
           path: |
             desktop/out/routilet-native-*.zip
-            desktop/out/routilet-native-*.tar.gz
             desktop/go.mod
             desktop/go.sum
             desktop/out/manager-native-*.tar.gz
@@ -255,8 +274,8 @@ jobs:
           mkdir -p release
           python3 desktop/scripts/package-manager.py --version "$VERSION" --windows out/windows/Routilet.exe --macos out/macos/Routilet.app --out "release/routilet-$VERSION.tgz"
           cp "$(find native-artifacts -name routilet-native-win32-x64.zip -print -quit)" "release/routilet-$VERSION-win32-x64.zip"
-          cp "$(find native-artifacts -name routilet-native-darwin-arm64.tar.gz -print -quit)" "release/routilet-$VERSION-darwin-arm64.tar.gz"
-          (cd release; sha256sum *.tgz *.zip *.tar.gz > SHA256SUMS)
+          cp "$(find native-artifacts -name routilet-native-darwin-arm64.zip -print -quit)" "release/routilet-$VERSION-darwin-arm64.zip"
+          (cd release; sha256sum *.tgz *.zip > SHA256SUMS)
       - uses: actions/upload-artifact@v4
         with:
           name: routilet-release-${{ env.VERSION }}
@@ -349,4 +368,4 @@ jobs:
           test "$(gh api "repos/$GITHUB_REPOSITORY/git/ref/tags/$tag" --jq .object.sha)" = "$GITHUB_SHA"
           args=()
           if [[ "$TAG" == next ]]; then args+=(--prerelease --latest=false); fi
-          gh release create "$tag" release/*.zip release/*.tar.gz release/*.tgz release/SHA256SUMS --verify-tag --title "Routilet $VERSION" --notes-file docs/release-notes.md "${args[@]}"
+          gh release create "$tag" release/*.zip release/*.tgz release/SHA256SUMS --verify-tag --title "Routilet $VERSION" --notes-file docs/release-notes.md "${args[@]}"

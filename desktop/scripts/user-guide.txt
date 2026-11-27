@@ -1,0 +1,11 @@
+﻿Routilet 使用说明
+
+1. 将整个压缩包完整解压到合适的位置。
+2. 打开 Routilet 文件夹，双击 Routilet（Routilet.exe）。
+3. 在 Routilet 中安装、打开或更新所需应用。
+
+请勿直接在压缩包内运行程序，也不要单独移动 Routilet.exe 或删除 runtime 文件夹。
+如需移动，请移动整个 Routilet 文件夹；已有桌面快捷方式需要重新创建。
+首次安装应用需要联网，已安装应用支持离线打开。
+
+项目地址：https://github.com/Routilet/routilet
