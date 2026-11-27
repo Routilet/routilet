@@ -28,9 +28,12 @@ type appSpec struct { ID, Name, Description, Package, Channel string }
 var catalog=[]appSpec{
  {"companion","Companion","代码管理与本地评测","@routilet/companion","latest"},
  {"observer","Observer","程序运行观察","@routilet/c-observer","latest"},
+ {"c-exam-kit","C Exam Kit","C 语言资源库","@routilet/c-exam-kit","latest"},
  {"accoding-adapter","Accoding Adapter","Accoding 在线评测接入","@routilet/accoding-adapter","latest"},
 }
-func(s appSpec) component()bool{return s.ID=="accoding-adapter"}
+func(s appSpec) resource()bool{return s.ID=="c-exam-kit"}
+func(s appSpec) adapter()bool{return s.ID=="accoding-adapter"}
+func(s appSpec) component()bool{return s.resource()||s.adapter()}
 type AppState struct {
  Component bool `json:"component"`
  ID string `json:"id"`
@@ -173,7 +176,7 @@ func nativeEntry(snapshot string,s appSpec,version string)(string,error){
  if err=json.Unmarshal(b,&manifest);err!=nil{return "",err}
  if manifest.SchemaVersion!=1||manifest.Version!=version{return "",errors.New("应用清单不兼容")}
  platform,ok:=manifest.Platforms[target()]
- if s.component(){if manifest.Adapter!="accoding"||manifest.Protocol!="routilet-oj-adapter/1"||platform.Executable!=""{return "",errors.New("适配器身份或协议不兼容")};platform.Executable=platform.Path}
+ if s.adapter(){if manifest.Adapter!="accoding"||manifest.Protocol!="routilet-oj-adapter/1"||platform.Executable!=""{return "",errors.New("适配器身份或协议不兼容")};platform.Executable=platform.Path}
  if !ok||platform.Executable==""||filepath.IsAbs(platform.Executable)||!filepath.IsLocal(filepath.FromSlash(platform.Executable)){return "",errors.New("当前平台没有有效入口")}
  entryPath:=filepath.Join(pkg,filepath.FromSlash(platform.Executable))
  entry,err:=filepath.EvalSymlinks(entryPath);if err!=nil{return "",fmt.Errorf("解析原生入口 %s: %w；%s",entryPath,err,describeEntryPath(entryPath))}
@@ -240,9 +243,11 @@ func (m *Manager) installExpected(id string,repair bool,expected string)error{
  job.stage("解析与下载")
  if err=m.installPackageContext(ctx,job,snap,s.Package,version);err!=nil{return fmt.Errorf("下载与安装 %s %s: %w",s.Package,version,err)}
  job.stage("校验应用")
- entry,err:=nativeEntry(snap,s,version);if err!=nil{return fmt.Errorf("校验应用 %s %s: %w",s.Name,version,err)}
- if s.ID=="routilet"{if err=probeManager(ctx,entry,version);err!=nil{return err}}
- if s.component(){if err=probeAdapter(ctx,entry,version);err!=nil{return err}}
+ if s.resource(){if err=sealKit(snap,s,version);err!=nil{return fmt.Errorf("校验资源 %s %s: %w",s.Name,version,err)}}else{
+  entry,e:=nativeEntry(snap,s,version);if e!=nil{return fmt.Errorf("校验应用 %s %s: %w",s.Name,version,e)}
+  if s.ID=="routilet"{if e=probeManager(ctx,entry,version);e!=nil{return e}}
+  if s.adapter(){if e=probeAdapter(ctx,entry,version);e!=nil{return e}}
+ }
  if err=job.commit();err!=nil{return err}
  if err=atomicJSON(filepath.Join(dir,"activation.json"),activation{Snapshot:filepath.Base(snap),Version:version,Previous:old.Snapshot,PreviousVersion:old.Version});err!=nil{return fmt.Errorf("激活版本 %s: %w",s.Name,err)}
  keep=true

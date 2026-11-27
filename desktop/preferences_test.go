@@ -5,6 +5,7 @@ func TestDisablePersistenceAndProtection(t *testing.T){
  if e:=m.setDisabled(s.ID,true);e!=nil{t.Fatal(e)}
  if e:=m.setDisabled("companion",true);e!=nil{t.Fatal(e)}
  if e:=m.setDisabled("accoding-adapter",true);e!=nil{t.Fatal(e)}
+ if e:=m.setDisabled("c-exam-kit",true);e!=nil{t.Fatal(e)}
  if e:=m.setDisabled("routilet",true);e==nil{t.Fatal("disabled manager")}
  for _,a:=range m.check(){if !a.Disabled||a.ReleaseStatus!="disabled"||a.Update{t.Fatal(a)}}
  if e:=m.install(s.ID);!errors.Is(e,errAppDisabled){t.Fatal(e)}
