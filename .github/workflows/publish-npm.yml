@@ -1,8 +1,11 @@
-name: Publish Routilet
+name: Build and publish Routilet
 on:
   push:
     branches: [main]
     paths: ['VERSION', '.github/workflows/publish-npm.yml']
+  pull_request:
+    branches: [main]
+    paths: ['desktop/**', 'VERSION', '.github/workflows/publish-npm.yml']
   workflow_dispatch:
 permissions:
   contents: read
@@ -12,7 +15,6 @@ concurrency:
 jobs:
   plan:
     runs-on: ubuntu-latest
-    if: github.ref == 'refs/heads/main'
     outputs:
       version: ${{ steps.version.outputs.version }}
       tag: ${{ steps.version.outputs.tag }}
@@ -37,6 +39,7 @@ jobs:
           GH_TOKEN: ${{ github.token }}
         run: |
           set -euo pipefail
+          if [[ "$GITHUB_EVENT_NAME" == pull_request ]]; then echo existing=false >> "$GITHUB_OUTPUT"; exit 0; fi
           code="$(curl --silent --show-error --output release-info.json --write-out '%{http_code}' --header "Authorization: Bearer $GH_TOKEN" "$GITHUB_API_URL/repos/$GITHUB_REPOSITORY/releases/tags/v$VERSION")"
           case "$code" in
             200) jq -e '.draft == false' release-info.json >/dev/null; echo existing=true >> "$GITHUB_OUTPUT" ;;
@@ -64,7 +67,7 @@ jobs:
     timeout-minutes: 25
     defaults:
       run:
-        working-directory: experiments/launcher-gui
+        working-directory: desktop
     steps:
       - uses: actions/checkout@v4
         with:
@@ -80,9 +83,25 @@ jobs:
         shell: bash
         run: |
           go mod tidy
-          go test ./...
-          go vet ./...
-      - name: Build desktop preview with fixed pnpm
+          git diff --exit-code -- go.mod go.sum
+          go test -mod=readonly ./...
+          go vet -mod=readonly ./...
+      - name: Generate native icons from vector source
+        shell: bash
+        env:
+          TARGET: ${{ matrix.target }}
+        run: |
+          set -euo pipefail
+          npm install --prefix out/icon-tools --no-save --ignore-scripts --no-audit --no-fund @resvg/resvg-js@2.6.2
+          node scripts/generate-icons.cjs
+          if [[ "$TARGET" == win32-x64 ]]; then
+            go run github.com/akavel/rsrc@v0.10.2 -arch amd64 -ico out/icons/Routilet.ico -o routilet_windows_amd64.syso
+            test -s routilet_windows_amd64.syso
+          else
+            iconutil -c icns out/icons/Routilet.iconset -o out/icons/Routilet.icns
+            test -s out/icons/Routilet.icns
+          fi
+      - name: Build desktop with fixed pnpm
         shell: bash
         env:
           TARGET: ${{ matrix.target }}
@@ -98,9 +117,9 @@ jobs:
             bin="$(find out/extracted -type f -iname 'pnpm*.exe' | head -n1)"
             test -n "$bin"
             cp "$bin" out/package/pnpm.exe
-            CGO_ENABLED=0 go build -tags production -trimpath -ldflags="-s -w -H windowsgui -X main.buildVersion=$VERSION" -o out/package/Routilet.exe .
+            CGO_ENABLED=0 go build -mod=readonly -tags production -trimpath -ldflags="-s -w -H windowsgui -X main.buildVersion=$VERSION" -o out/package/Routilet.exe .
             # Console self-test build exercises identical backend.
-            CGO_ENABLED=0 go build -tags production -trimpath -o out/package/console-test.exe .
+            CGO_ENABLED=0 go build -mod=readonly -tags production -trimpath -o out/package/console-test.exe .
             out/package/console-test.exe --self-test
             rm out/package/console-test.exe
           else
@@ -114,8 +133,11 @@ jobs:
             cp "$bin" "$app/Contents/MacOS/pnpm"
             chmod +x "$app/Contents/MacOS/pnpm"
             cp Info.plist "$app/Contents/Info.plist"
-            CGO_ENABLED=1 MACOSX_DEPLOYMENT_TARGET=12.0 go build -tags production -trimpath -ldflags="-s -w -X main.buildVersion=$VERSION" -o "$app/Contents/MacOS/Routilet" .
+            mkdir -p "$app/Contents/Resources"
+            cp out/icons/Routilet.icns "$app/Contents/Resources/"
+            CGO_ENABLED=1 MACOSX_DEPLOYMENT_TARGET=12.0 go build -mod=readonly -tags production -trimpath -ldflags="-s -w -X main.buildVersion=$VERSION" -o "$app/Contents/MacOS/Routilet" .
             /usr/libexec/PlistBuddy -c "Set :CFBundleShortVersionString ${VERSION%%-*}" "$app/Contents/Info.plist"
+            /usr/libexec/PlistBuddy -c "Set :CFBundleVersion ${VERSION%%-*}" "$app/Contents/Info.plist"
             codesign --force --sign - "$app"
             codesign --verify --strict "$app"
             "$app/Contents/MacOS/Routilet" --self-test
@@ -123,7 +145,7 @@ jobs:
           if [[ "$TARGET" == win32-x64 ]]; then export CGO_ENABLED=0; else export CGO_ENABLED=1; fi
           node scripts/native-notices.mjs out/package/THIRD_PARTY_NOTICES.txt
           cp README.md out/package/
-          cp ../../LICENSE out/package/Routilet-LICENSE
+          cp ../LICENSE out/package/Routilet-LICENSE
           while IFS= read -r -d '' notice; do
             cp "$notice" "out/package/pnpm-$(basename "$notice")"
           done < <(find out/extracted -type f \( -iname '*license*' -o -iname '*notice*' \) -print0)
@@ -131,11 +153,11 @@ jobs:
             curl --fail --location --retry 3 https://raw.githubusercontent.com/pnpm/pnpm/v12.22.0/LICENSE -o out/package/pnpm-LICENSE
           fi
           if [[ "$TARGET" == win32-x64 ]]; then
-            (cd out/package && powershell.exe -NoProfile -Command "Compress-Archive -Path * -DestinationPath ../routilet-gui-win32-x64.zip")
+            (cd out/package && powershell.exe -NoProfile -Command "Compress-Archive -Path * -DestinationPath ../routilet-native-win32-x64.zip")
           else
-            tar -czf out/routilet-gui-darwin-arm64.tar.gz -C out/package .
+            tar -czf out/routilet-native-darwin-arm64.tar.gz -C out/package .
           fi
-          ls -lh out/routilet-gui-*
+          ls -lh out/routilet-native-*
       - name: Test native manager self-update from local npm tarball
         shell: bash
         env:
@@ -143,20 +165,22 @@ jobs:
         run: |
           set -euo pipefail
           if [[ "$TARGET" == win32-x64 ]]; then
-            CGO_ENABLED=0 go build -tags production -trimpath -ldflags="-H windowsgui -X main.buildVersion=9999.0.0 -X main.fixtureMode=ready" -o out/candidate.exe .
+            CGO_ENABLED=0 go build -mod=readonly -tags production -trimpath -ldflags="-H windowsgui -X main.buildVersion=9999.0.0 -X main.fixtureMode=ready" -o out/candidate.exe .
             python scripts/package-manager.py --version 9999.0.0 --windows out/candidate.exe --out out/manager-fixture.tgz
-            CGO_ENABLED=0 go build -tags production -o out/package/self-update-test.exe .
+            CGO_ENABLED=0 go build -mod=readonly -tags production -o out/package/self-update-test.exe .
             out/package/self-update-test.exe --self-update-test out/manager-fixture.tgz 9999.0.0
           else
             candidate=out/candidate/Routilet.app
             mkdir -p "$candidate/Contents/MacOS"
             cp Info.plist "$candidate/Contents/Info.plist"
-            CGO_ENABLED=1 MACOSX_DEPLOYMENT_TARGET=12.0 go build -tags production -trimpath -ldflags="-X main.buildVersion=9999.0.0 -X main.fixtureMode=ready" -o "$candidate/Contents/MacOS/Routilet" .
+            mkdir -p "$candidate/Contents/Resources"
+            cp out/icons/Routilet.icns "$candidate/Contents/Resources/"
+            CGO_ENABLED=1 MACOSX_DEPLOYMENT_TARGET=12.0 go build -mod=readonly -tags production -trimpath -ldflags="-X main.buildVersion=9999.0.0 -X main.fixtureMode=ready" -o "$candidate/Contents/MacOS/Routilet" .
             codesign --force --sign - "$candidate"
             python3 scripts/package-manager.py --version 9999.0.0 --macos "$candidate" --out out/manager-fixture.tgz
             out/package/Routilet.app/Contents/MacOS/Routilet --self-update-test out/manager-fixture.tgz 9999.0.0
           fi
-      - name: Stage native manager for release dry run
+      - name: Stage native manager for release
         shell: bash
         env:
           TARGET: ${{ matrix.target }}
@@ -175,13 +199,13 @@ jobs:
           tar -czf "out/manager-native-$TARGET.tar.gz" -C out/manager-native .
       - uses: actions/upload-artifact@v4
         with:
-          name: routilet-gui-${{ matrix.target }}
+          name: routilet-native-${{ matrix.target }}
           path: |
-            experiments/launcher-gui/out/routilet-gui-*.zip
-            experiments/launcher-gui/out/routilet-gui-*.tar.gz
-            experiments/launcher-gui/go.mod
-            experiments/launcher-gui/go.sum
-            experiments/launcher-gui/out/manager-native-*.tar.gz
+            desktop/out/routilet-native-*.zip
+            desktop/out/routilet-native-*.tar.gz
+            desktop/go.mod
+            desktop/go.sum
+            desktop/out/manager-native-*.tar.gz
           if-no-files-found: error
   package-manager:
     needs: [plan, build]
@@ -194,9 +218,9 @@ jobs:
           persist-credentials: false
       - uses: actions/download-artifact@v4
         with:
-          pattern: routilet-gui-*
+          pattern: routilet-native-*
           path: native-artifacts
-      - name: Assemble both native manager platforms (no publication)
+      - name: Assemble both native manager platforms
         shell: bash
         run: |
           set -euo pipefail
@@ -204,9 +228,9 @@ jobs:
           tar -xzf "$(find native-artifacts -name manager-native-win32-x64.tar.gz -print -quit)" -C out/windows
           tar -xzf "$(find native-artifacts -name manager-native-darwin-arm64.tar.gz -print -quit)" -C out/macos
           mkdir -p release
-          python3 experiments/launcher-gui/scripts/package-manager.py --version "$VERSION" --windows out/windows/Routilet.exe --macos out/macos/Routilet.app --out "release/routilet-$VERSION.tgz"
-          cp "$(find native-artifacts -name routilet-gui-win32-x64.zip -print -quit)" "release/routilet-$VERSION-win32-x64.zip"
-          cp "$(find native-artifacts -name routilet-gui-darwin-arm64.tar.gz -print -quit)" "release/routilet-$VERSION-darwin-arm64.tar.gz"
+          python3 desktop/scripts/package-manager.py --version "$VERSION" --windows out/windows/Routilet.exe --macos out/macos/Routilet.app --out "release/routilet-$VERSION.tgz"
+          cp "$(find native-artifacts -name routilet-native-win32-x64.zip -print -quit)" "release/routilet-$VERSION-win32-x64.zip"
+          cp "$(find native-artifacts -name routilet-native-darwin-arm64.tar.gz -print -quit)" "release/routilet-$VERSION-darwin-arm64.tar.gz"
           (cd release; sha256sum *.tgz *.zip *.tar.gz > SHA256SUMS)
       - uses: actions/upload-artifact@v4
         with:
@@ -215,7 +239,7 @@ jobs:
           if-no-files-found: error
   publish:
     needs: [plan, package-manager]
-    if: ${{ !cancelled() && needs.plan.result == 'success' && (needs.plan.outputs.existing == 'true' || needs.package-manager.result == 'success') }}
+    if: ${{ github.ref == 'refs/heads/main' && !cancelled() && needs.plan.result == 'success' && (needs.plan.outputs.existing == 'true' || needs.package-manager.result == 'success') }}
     runs-on: ubuntu-latest
     permissions:
       contents: read
@@ -267,7 +291,7 @@ jobs:
           echo "Verified publication: @routilet/routilet@$VERSION ($TAG)" >> "$GITHUB_STEP_SUMMARY"
   github-release:
     needs: [plan, package-manager]
-    if: needs.plan.outputs.existing == 'false'
+    if: github.ref == 'refs/heads/main' && needs.plan.outputs.existing == 'false'
     runs-on: ubuntu-latest
     permissions:
       contents: write
