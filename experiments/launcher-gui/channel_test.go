@@ -13,6 +13,8 @@ func TestChannelSelection(t *testing.T){
  {"stable","","1.3.0-beta.1",""},
  {"test","1.2.0","1.3.0-beta.01","1.2.0"},
  {"test","1.2.0+build.1","1.2.0+build.2","1.2.0+build.1"},
+ {"test","1.9.0","1.10.0-beta.1","1.10.0-beta.1"},
+ {"test","1.2.0","1.99999999999999999999999.0-beta.1","1.99999999999999999999999.0-beta.1"},
  }{if got:=chooseRelease(s,c.channel,c.latest,c.next);got!=c.want{t.Fatalf("%+v: got %s",c,got)}}
  observer,_:=spec("observer")
  if v:=chooseRelease(observer,"stable","0.1.2","0.2.0-beta.1");v!=""{t.Fatal("legacy TUI selected",v)}

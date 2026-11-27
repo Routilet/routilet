@@ -123,25 +123,21 @@ func (m *Manager) check()[]AppState{
  }
  return out
 }
-// Small comparison for the published numeric core and beta.N/rc.N channels.
-// Stable outranks prerelease of the same core. Other suffixes compare by
-// dot-separated numeric identifiers, as in SemVer.
+// SemVer precedence: compare numeric strings without machine-integer overflow;
+// build metadata does not affect precedence.
 func newer(a,b string)bool{
- split:=func(v string)([3]int,string){
-  v,_,_=strings.Cut(v,"+");core,pre,_:=strings.Cut(v,"-");var n [3]int
-  fmt.Sscanf(core,"%d.%d.%d",&n[0],&n[1],&n[2]);return n,pre
- }
- x,p:=split(a);y,q:=split(b)
- for i:=0;i<3;i++{if x[i]!=y[i]{return x[i]>y[i]}}
+ if !validRelease(a)||!validRelease(b){return false}
+ parse:=func(v string)([]string,string){v,_,_=strings.Cut(v,"+");core,pre,_:=strings.Cut(v,"-");return strings.Split(core,"."),pre}
+ numCompare:=func(x,y string)int{if len(x)<len(y){return -1};if len(x)>len(y){return 1};return strings.Compare(x,y)}
+ x,p:=parse(a);y,q:=parse(b)
+ for i:=0;i<3;i++{if c:=numCompare(x[i],y[i]);c!=0{return c>0}}
  if p==q{return false};if p==""{return true};if q==""{return false}
  ps,qs:=strings.Split(p,"."),strings.Split(q,".")
  for i:=0;i<len(ps)&&i<len(qs);i++{
   if ps[i]==qs[i]{continue}
-  var n,m int
-  _,en:=fmt.Sscanf(ps[i],"%d",&n);_,em:=fmt.Sscanf(qs[i],"%d",&m)
-  numeric:=regexp.MustCompile(`^[0-9]+$`)
-  pn,qn:=en==nil&&numeric.MatchString(ps[i]),em==nil&&numeric.MatchString(qs[i])
-  if pn&&qn{return n>m};if pn!=qn{return !pn};return ps[i]>qs[i]
+  pn,qn:=digitsPattern.MatchString(ps[i]),digitsPattern.MatchString(qs[i])
+  if pn&&qn{return numCompare(ps[i],qs[i])>0};if pn!=qn{return !pn}
+  return ps[i]>qs[i]
  }
  return len(ps)>len(qs)
 }
