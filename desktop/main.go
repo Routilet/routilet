@@ -51,11 +51,13 @@ func (d *Desktop) OpenData() error {
 
 func run() error {
  if len(os.Args)==2&&os.Args[1]=="--app-call-probe"{fmt.Println(appCallProtocol);return nil}
+ if len(os.Args)==2&&os.Args[1]=="--resource-probe"{fmt.Println(resourceProtocol);return nil}
  if len(os.Args)==2&&os.Args[1]=="--adapter-call-probe"{fmt.Println(adapterCallProtocol);return nil}
  if len(os.Args)==2&&os.Args[1]=="--manager-probe"{fmt.Println("routilet-manager/1 "+buildVersion);return nil}
  if len(os.Args)==2 && os.Args[1]=="--self-test" { return selfTest() }
  if len(os.Args)==4&&os.Args[1]=="--self-update-test"{return selfUpdateTest(os.Args[2],os.Args[3])}
  m,err:=newManager();if err!=nil{return err}
+ if len(os.Args)==3&&os.Args[1]=="--resource-export"{return m.exportResource(os.Args[2],os.Stdout)}
  if len(os.Args)==3&&os.Args[1]=="--adapter-stdio"{return m.callAdapter(os.Args[2],os.Stdin,os.Stdout)}
  if len(os.Args)==3&&os.Args[1]=="--adapter-available"{return m.adapterAvailable(os.Args[2])}
  if len(os.Args)>1&&(os.Args[1]=="--open-app"||os.Args[1]=="--query-app"){
@@ -85,7 +87,7 @@ func run() error {
  })
  if icon,e:=assets.ReadFile("frontend/icons/routilet.png");e==nil{app.SetIcon(icon)}
  d.native=app
- window:=app.Window.NewWithOptions(application.WebviewWindowOptions{Title:"Routilet",Width:420,Height:330,MinWidth:360,MinHeight:280,URL:"/"})
+ window:=app.Window.NewWithOptions(application.WebviewWindowOptions{Title:"Routilet",Width:420,Height:380,MinWidth:360,MinHeight:280,URL:"/"})
  window.RegisterHook(events.Common.WindowClosing,func(e *application.WindowEvent){if m.progress().Active{e.Cancel()}})
  return app.Run()
 }

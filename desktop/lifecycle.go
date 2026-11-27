@@ -51,7 +51,7 @@ func (m *Manager) rollbackExpected(id,expected string)error{
  a,err:=m.active(s);if err!=nil{return err}
  if a.Previous==""{return errors.New("没有可回退版本")}
  if expected!=""&&expected!=a.PreviousVersion{return errors.New("回退目标已变化，请重新检查")}
- if _,err=nativeEntry(filepath.Join(m.appDir(s),a.Previous),s,a.PreviousVersion);err!=nil{return err}
+ if s.resource(){if _,err=verifiedKit(filepath.Join(m.appDir(s),a.Previous),s,a.PreviousVersion);err!=nil{return err}}else if _,err=nativeEntry(filepath.Join(m.appDir(s),a.Previous),s,a.PreviousVersion);err!=nil{return err}
  return atomicJSON(filepath.Join(m.appDir(s),"activation.json"),activation{Snapshot:a.Previous,Version:a.PreviousVersion,Previous:a.Snapshot,PreviousVersion:a.Version})
 }
 func (m *Manager) uninstall(id string)error{

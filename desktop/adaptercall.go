@@ -15,7 +15,7 @@ import (
 
 const adapterCallProtocol="routilet-adapter-call/1"
 func adapterSpec(id string)(appSpec,error){
- s,e:=spec(id);if e!=nil||!s.component(){return appSpec{},errors.New("未知适配器组件")};return s,nil
+ s,e:=spec(id);if e!=nil||!s.adapter(){return appSpec{},errors.New("未知适配器组件")};return s,nil
 }
 // Availability is offline and read-only. Launch rechecks active version under
 // the operation lock, so this result is not a promise about a later launch.

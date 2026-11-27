@@ -35,3 +35,7 @@ routilet --adapter-stdio accoding-adapter
 probe 返回 `routilet-adapter-call/1`；available 只读验证当前激活版本、启用状态、身份/协议、平台和 SHA256（退出 0 表示可启动，不联网，不启动子进程）。stdio 在操作锁内重新校验并放置运行标记，释放锁后原样转发 stdin/stdout 到固定 --stdio 子进程；不解析业务、不转发 Adapter stderr、不接受任意参数。正常 EOF/退出回收运行标记；异常杀死监督进程保守保留标记。调用者正常关闭 stdin、等待 supervisor 退出；超时再终止，可能留下保守标记。不要暴露安装二进制路径或绕过 manager。旧 manager 不支持时仅禁用在线功能。Companion 对接需另行实现，仍可保留显式开发路径作为测试覆盖。
 
 首页将可选组件与独立应用分区显示，当前固定展开；安装组件不自动启动或退出 Routilet。业务 stdio 和 stderr 不持久化、不展示，避免账号、请求和响应数据泄露；启动失败、进程退出状态和离线握手错误提供结构化阶段提示。
+
+## 资源协议 v1
+
+`--resource-probe` 输出 `routilet-resource/1`；`--resource-export c-exam-kit` 离线输出单个 JSON 对象（protocol、id、version、files：固定相对文件名到 base64 字节）。总原始数据上限 2 MiB；锁内读取及校验激活资源与本地 SHA256 seal，释放锁后输出。禁用、缺失或损坏返回非零状态。资源不执行，不返回安装路径；调用方复制到会话私有目录并做完整业务 schema 校验，工作区历史快照不改。更新后新会话取新版。旧 Companion 固定依赖不受影响。

@@ -123,7 +123,7 @@ test('disable and enable without uninstall; data directory only in settings',asy
 
 test('optional components are always expanded, installation keeps launcher open',async t=>{
  const p=await setup(t,{installed:'0.2.0',withAdapter:true});
- const section=p.getByRole('region',{name:'可选组件'});
+ const section=p.getByRole('region',{name:'组件'});
  const install=section.getByRole('button',{name:'Accoding Adapter 安装'});
  await install.waitFor();assert.equal(await section.isVisible(),true);
  assert.equal(await p.locator('#apps [aria-label^="Accoding Adapter"]').count(),0);

@@ -49,6 +49,13 @@ func selfTest()error{
  if !strings.Contains(adapterOut.String(),"routilet-oj-adapter/1"){return errors.New("Adapter capability response invalid")}
  fmt.Println("PASS: actual Adapter install, verified manifest and protected stdio",av)
  if err=m.setChannel(stableChannel);err!=nil{return err}
+ kit,_:=spec("c-exam-kit");kv,e:=m.remote(kit);if e!=nil{return e}
+ if e=m.installExpected(kit.ID,false,kv);e!=nil{return e}
+ k,e:=m.resourceData(kit.ID);if e!=nil||k.Version!=kv{return fmt.Errorf("Exam Kit export: %v",e)}
+ fmt.Println("PASS: actual Exam Kit install and verified resource export",kv)
+ if e=m.setDisabled(kit.ID,true);e!=nil{return e}
+ if _,e=m.resourceData(kit.ID);!errors.Is(e,errAppDisabled){return errors.New("disabled resource exported")}
+ if e=m.setDisabled(kit.ID,false);e!=nil{return e}
  // Observer may not be published yet. Only report the actual result.
  observer,_:=spec("observer")
  v,err:=m.remote(observer)
