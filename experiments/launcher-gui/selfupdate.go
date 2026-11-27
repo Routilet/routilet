@@ -14,6 +14,8 @@ import(
 )
 
 var buildVersion="0.1.0"
+// Set only for the never-published CI fixture. Production builds leave empty.
+var fixtureMode=""
 var managerSpec=appSpec{"routilet","Routilet","应用启动台","@routilet/routilet","latest"}
 var managerVersion=regexp.MustCompile(`^[0-9]+\.[0-9]+\.[0-9]+(?:-[0-9A-Za-z.-]+)?$`)
 type SelfInfo struct{
@@ -94,10 +96,15 @@ func selfUpdateTest(tarball,version string)error{
  a:=activation{Snapshot:filepath.Base(snap),Version:version}
  if e=atomicJSON(filepath.Join(dir,"activation.json"),a);e!=nil{return e}
  if got,e:=m.active(managerSpec);e!=nil||got!=a{return fmt.Errorf("activation %v %v",got,e)}
- // Invalid candidate never prevents bundled GUI fallback. No GUI in CI.
- if e=os.WriteFile(entry,[]byte("damaged"),0700);e!=nil{return e}
+ // Execute the installed native fixture through the real bootstrap dispatch
+ // and readiness handshake. This tests the protocol, not WebView rendering.
+ if !m.dispatch(){return errors.New("healthy manager did not start")}
+ time.Sleep(1200*time.Millisecond)
+ // Invalid candidate never prevents bundled GUI fallback. Remove only the
+ // candidate entry, rather than writing through a possibly shared hardlink.
+ if e=os.Remove(entry);e!=nil{return e}
  if m.dispatch(){return errors.New("damaged manager launched")}
  if _,e=m.active(managerSpec);!os.IsNotExist(e){return errors.New("failed activation not cleared")}
- fmt.Println("PASS: local npm manager install, manifest, protocol, activation, corrupt candidate fallback")
+ fmt.Println("PASS: local npm manager install, manifest, protocol, activation, ready handshake, corrupt candidate fallback")
  return nil
 }

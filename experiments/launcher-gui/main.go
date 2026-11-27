@@ -7,6 +7,7 @@ import (
  "os"
  "os/exec"
  "runtime"
+ "time"
  "github.com/wailsapp/wails/v3/pkg/events"
  "github.com/wailsapp/wails/v3/pkg/application"
 )
@@ -49,6 +50,7 @@ func run() error {
  if len(os.Args)==3&&os.Args[1]=="--open-app"{return m.launch(os.Args[2])}
  if len(os.Args)==4&&os.Args[1]=="--managed"{
   if err=m.setBootstrap(os.Args[2]);err!=nil{return err};m.ready=os.Args[3]
+  if fixtureMode=="ready"{if err=os.WriteFile(m.ready,[]byte("ready"),0600);err!=nil{return err};time.Sleep(750*time.Millisecond);return nil}
  }else if len(os.Args)==1{if m.dispatch(){return nil}}else{return fmt.Errorf("unsupported arguments")}
  d:=&Desktop{manager:m}
  frontend,err:=fs.Sub(assets,"frontend");if err!=nil{return err}

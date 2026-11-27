@@ -28,7 +28,7 @@ Go + Wails v3.1.0，静态 Web 前端，固定 pnpm 12.22.0 随包分发；使�
 
 ## 自更新发行协议
 
-固定初始入口兼作备用 GUI。@routilet/routilet latest 包包含双平台预构建 Manager（manifest schema 1）；不包含 pnpm，使用初始入口同目录的固定 pnpm。`scripts/package-manager.py` 从已构建原生资产生成 npm tarball，不发布。macOS 候选 APP 需在打包前单独签名。CI 使用本地 0.1.1 测试 tarball，验证实际 pnpm 安装、清单和协议、激活记录及损坏后回退；真实 GUI Ready 及首次发行后的线上升级尚待真机。CI 额外生成 0.1.0 双平台 Manager npm dry-run tarball，不含 pnpm，不发布；首次发行前需验收签名、许可证、实际 registry 权限及发布流程。
+固定初始入口兼作备用 GUI。@routilet/routilet latest 包包含双平台预构建 Manager（manifest schema 1）；不包含 pnpm，使用初始入口同目录的固定 pnpm。`scripts/package-manager.py` 从已构建原生资产生成 npm tarball，不发布。macOS 候选 APP 需在打包前单独签名。CI 使用本地 0.1.1 测试 tarball，验证实际 pnpm 安装、清单和协议、激活记录、真实子进程 Ready 握手（无 WebView 的测试候选）及损坏后回退；真实 GUI Ready 及首次发行后的线上升级尚待真机。CI 额外生成 0.1.0 双平台 Manager npm dry-run tarball，不含 pnpm，不发布；首次发行前需验收签名、许可证、实际 registry 权限及发布流程。
 
 ### 生命周期限制
 
