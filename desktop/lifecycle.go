@@ -17,30 +17,38 @@ func (m *Manager) operationLock()(func(),error){
  if err=lockFile(f);err!=nil{f.Close();return nil,errors.New("另一 Routilet 实例正在操作，请稍后重试")}
  return func(){unlockFile(f);f.Close()},nil
 }
-func (m *Manager) cleanup(s appSpec){
- a,err:=m.active(s)
- if err!=nil&&!os.IsNotExist(err){return}
- dir:=m.appDir(s)
- entries,err:=os.ReadDir(dir);if err!=nil{return}
- for _,e:=range entries{
-  if !e.IsDir()||!validSnapshot(e.Name())||e.Name()==a.Snapshot||e.Name()==a.Previous{continue}
-  path:=filepath.Join(dir,e.Name())
-  // A marker is created BEFORE spawning the supervisor, and removed only
-  // after a known process exit. Crashes leave markers and leak space rather
-  // than risk deletion of a live application. No timestamp-based expiry.
-  runs,err:=os.ReadDir(filepath.Join(path,".runs"))
-  if err!=nil&&!os.IsNotExist(err){continue}
-  if len(runs)>0{continue}
-  _=os.RemoveAll(path)
- }
+type CleanupReport struct {
+ Removed int `json:"removed"`
+ Protected int `json:"protected"`
+ Failed []string `json:"failed"`
 }
-func (m *Manager) rollback(id string)error{
+func (m *Manager) cleanup(s appSpec)CleanupReport{
+ result:=CleanupReport{}
+ a,err:=m.active(s)
+ if err!=nil&&!os.IsNotExist(err){result.Failed=append(result.Failed,s.Name+": "+err.Error());return result}
+ dir:=m.appDir(s)
+ entries,err:=os.ReadDir(dir);if os.IsNotExist(err){return result};if err!=nil{result.Failed=append(result.Failed,s.Name+": "+err.Error());return result}
+ for _,e:=range entries{
+  if !e.IsDir()||!validSnapshot(e.Name()){continue}
+  if e.Name()==a.Snapshot||e.Name()==a.Previous{result.Protected++;continue}
+  path:=filepath.Join(dir,e.Name())
+  // Retain snapshots with running markers, even when stale or unreadable.
+  runs,err:=os.ReadDir(filepath.Join(path,".runs"))
+  if err!=nil&&!os.IsNotExist(err){result.Protected++;result.Failed=append(result.Failed,s.Name+": "+err.Error());continue}
+  if len(runs)>0{result.Protected++;continue}
+  if err=os.RemoveAll(path);err!=nil{result.Failed=append(result.Failed,s.Name+": "+err.Error())}else{result.Removed++}
+ }
+ return result
+}
+func (m *Manager) rollback(id string)error{return m.rollbackExpected(id,"")}
+func (m *Manager) rollbackExpected(id,expected string)error{
  if id=="routilet"{return errors.New("不能通过应用管理修改 Routilet 自身")}
  m.mu.Lock();defer m.mu.Unlock()
  done,err:=m.operationLock();if err!=nil{return err};defer done()
  s,err:=spec(id);if err!=nil{return err}
  a,err:=m.active(s);if err!=nil{return err}
  if a.Previous==""{return errors.New("没有可回退版本")}
+ if expected!=""&&expected!=a.PreviousVersion{return errors.New("回退目标已变化，请重新检查")}
  if _,err=nativeEntry(filepath.Join(m.appDir(s),a.Previous),s,a.PreviousVersion);err!=nil{return err}
  return atomicJSON(filepath.Join(m.appDir(s),"activation.json"),activation{Snapshot:a.Previous,Version:a.PreviousVersion,Previous:a.Snapshot,PreviousVersion:a.Version})
 }
@@ -50,14 +58,16 @@ func (m *Manager) uninstall(id string)error{
  done,err:=m.operationLock();if err!=nil{return err};defer done()
  s,err:=spec(id);if err!=nil{return err}
  if err=os.Remove(filepath.Join(m.appDir(s),"activation.json"));err!=nil&&!os.IsNotExist(err){return err}
- m.cleanup(s)
+ result:=m.cleanup(s)
+ if len(result.Failed)>0{return fmt.Errorf("应用已卸载，但部分文件未清理：%s",strings.Join(result.Failed,"; "))}
  return nil
 }
-func (m *Manager) clean()error{
+func (m *Manager) clean()(CleanupReport,error){
  m.mu.Lock();defer m.mu.Unlock()
- done,err:=m.operationLock();if err!=nil{return err};defer done()
- for _,s:=range catalog{m.cleanup(s)}
- return nil
+ done,err:=m.operationLock();if err!=nil{return CleanupReport{},err};defer done()
+ var report CleanupReport
+ for _,s:=range catalog{r:=m.cleanup(s);report.Removed+=r.Removed;report.Protected+=r.Protected;report.Failed=append(report.Failed,r.Failed...)}
+ return report,nil
 }
 func (m *Manager) startProtected(s appSpec,a activation)error{
  snap:=filepath.Join(m.appDir(s),a.Snapshot)

@@ -12,7 +12,7 @@ import(
  "time"
 )
 
-var buildVersion="0.1.1"
+var buildVersion="0.1.2"
 // Set only for the never-published CI fixture. Production builds leave empty.
 var fixtureMode=""
 var managerSpec=appSpec{"routilet","Routilet","应用启动台","@routilet/routilet","latest"}
@@ -21,13 +21,19 @@ type SelfInfo struct{
  Available string `json:"available"`
  Update bool `json:"update"`
  Pending bool `json:"pending"`
+ PendingVersion string `json:"pendingVersion"`
+ ReleaseStatus string `json:"releaseStatus"`
  Note string `json:"note"`
 }
+func(m *Manager)selfLocal()SelfInfo{
+ a:=SelfInfo{Version:buildVersion,ReleaseStatus:"unknown"}
+ if v,e:=m.active(managerSpec);e==nil&&newer(v.Version,buildVersion){a.Pending=true;a.PendingVersion=v.Version}
+ return a
+}
 func(m *Manager)selfInfo()SelfInfo{
- a:=SelfInfo{Version:buildVersion}
- pending:="";if v,e:=m.active(managerSpec);e==nil&&newer(v.Version,buildVersion){pending=v.Version;a.Pending=true}
- v,e:=m.remote(managerSpec);if e!=nil{a.Note=e.Error();return a}
- a.Available=v;a.Update=newer(v,buildVersion)&&(pending==""||newer(v,pending))
+ a:=m.selfLocal()
+ v,e:=m.remote(managerSpec);if e!=nil{a.Note=e.Error();if errors.Is(e,errNoRelease){a.ReleaseStatus="unavailable"}else{a.ReleaseStatus="error"};return a}
+ a.ReleaseStatus="available";a.Available=v;a.Update=newer(v,buildVersion)&&(!a.Pending||newer(v,a.PendingVersion))
  return a
 }
 func(m *Manager)setBootstrap(path string)error{
