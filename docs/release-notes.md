@@ -1,6 +1,5 @@
-# Routilet 0.1.7
+# Routilet 0.1.8
 
-- C Exam Kit 独立资源组件，支持安装、更新、回退、修复、禁用和卸载；与 Adapter 分区同列。
-- 新增 routilet-resource/1，离线导出有界、经校验的资源数据，不传出可失效的安装路径。
-- 统一 Accoding Adapter 与 Exam Kit 图标。保留 Windows 原生安装策略。
-- 旧 Companion 仍使用固定依赖；独立资源需要 Companion 配套新版。
+- 修复 GUI 启动与 Exam Kit 资源导出之间的操作锁竞争：原子保护已校验的应用快照，释放锁后再启动监督进程。
+- 安装、卸载、回退及完整性校验契约不变；不修改工作区资源快照。
+- 配套 Companion 0.1.0-beta.6，兼容此前版本。
