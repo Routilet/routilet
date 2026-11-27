@@ -47,9 +47,12 @@ func selfTest()error{
  if runtime.GOOS=="windows"{
   active,e:=m.active(observer);if e!=nil{return e}
   snap:=filepath.Join(m.appDir(observer),active.Snapshot)
-  pkg:=filepath.Join(snap,"node_modules",filepath.FromSlash(observer.Package))
+  // Windows may expand short names (RUNNER~1) or resolve a junction in the
+  // temporary root. Compare paths relative to the same canonical snapshot.
+  canonicalSnap,e:=filepath.EvalSymlinks(snap);if e!=nil{return e}
+  pkg:=filepath.Join(canonicalSnap,"node_modules",filepath.FromSlash(observer.Package))
   resolved,e:=filepath.EvalSymlinks(pkg);if e!=nil{return e}
-  if !strings.EqualFold(filepath.Clean(resolved),filepath.Clean(pkg)){return fmt.Errorf("Windows native package is not in the expected physical directory: %s",resolved)}
+  if !strings.EqualFold(filepath.Clean(resolved),filepath.Clean(pkg)){return fmt.Errorf("Windows native package layout: expected %s; resolved %s",pkg,resolved)}
   if _,e=os.Stat(filepath.Join(m.root,"store-native"));e!=nil{return e}
   fmt.Println("PASS: Windows native package physical layout and isolated store")
   // Exercise the warm store and repair path, keeping the previous snapshot.
