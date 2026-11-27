@@ -18,7 +18,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/Routilet/accoding-companion/launcher/internal/managed"
+	"github.com/Routilet/routilet/launcher/internal/managed"
 )
 
 // Real npm installs from a local registry with intentionally tiny synthetic
@@ -36,7 +36,7 @@ func managedFixture(t *testing.T, version string, compatible bool) []byte {
 	if err != nil {
 		t.Fatal(err)
 	}
-	cli := fmt.Sprintf("if(process.argv[2]==='--version') console.log(%q); else ", version)
+	cli := fmt.Sprintf("if(process.argv[2]==='--version') console.log(%q); else if(process.argv.length===2) console.log(%q); else ", version, version)
 	if compatible {
 		cli += fmt.Sprintf("if(process.argv[2]==='--installation-info') console.log(%q); else ", string(info))
 	}
@@ -70,6 +70,7 @@ func exerciseLocalRegistry(t *testing.T, runtime nodeRuntime, root string) {
 		"0.2.7": managedFixture(t, "0.2.7", false),
 		"0.2.8": managedFixture(t, "0.2.8", true),
 		"0.2.9": managedFixture(t, "0.2.9", true),
+		"0.2.10": managedFixture(t, "0.2.10", false),
 	}
 	var latest atomic.Value
 	latest.Store("0.2.7")
@@ -145,6 +146,15 @@ func exerciseLocalRegistry(t *testing.T, runtime nodeRuntime, root string) {
 	install("0.2.8")
 	latest.Store("0.2.9")
 	install("0.2.9")
+	before, err := manager.State()
+	if err != nil { t.Fatal(err) }
+	latest.Store("0.2.10")
+	bad, err := manager.Plan(ctx, "0.2.10")
+	if bad != nil { defer bad.Close() }
+	if err == nil || !strings.Contains(err.Error(), "0.2.10 --installation-info") { t.Fatalf("incompatible update: %v", err) }
+	if after, err := manager.State(); err != nil || after != before { t.Fatalf("failed update changed activation: %+v %v", after, err) }
+	// Stop the only fixture registry before rollback and actual start.
+	server.Close()
 	info, err := manager.Rollback(ctx)
 	if err != nil || info.Version != "0.2.8" {
 		t.Fatalf("rollback: %+v %v", info, err)
@@ -158,6 +168,7 @@ func exerciseLocalRegistry(t *testing.T, runtime nodeRuntime, root string) {
 	if err != nil || strings.TrimSpace(string(output)) != "0.2.8" {
 		t.Fatalf("start entrypoint: %q %v", output, err)
 	}
+	if err := startV2(root, "latest", runtime); err != nil { t.Fatalf("offline launcher start: %v", err) }
 }
 
 // Run only after the stable npm package exists, before releasing the ZIPs.

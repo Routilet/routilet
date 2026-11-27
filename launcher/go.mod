@@ -1,4 +1,4 @@
-module github.com/Routilet/accoding-companion/launcher
+module github.com/Routilet/routilet/launcher
 
 go 1.24.9
 

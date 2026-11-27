@@ -14,11 +14,11 @@ import (
 	"time"
 
 	tea "github.com/charmbracelet/bubbletea"
-	"github.com/Routilet/accoding-companion/launcher/internal/managed"
+	"github.com/Routilet/routilet/launcher/internal/managed"
 )
 
-// Development-only opt-in until a compatible Companion has been published.
-var managedV2Default = "0"
+// Phase 01 uses the existing v2 launcher by default; retain the v1 build override.
+var managedV2Default = "1"
 
 type v2Settings struct {
 	SchemaVersion int    `json:"schemaVersion"`
@@ -320,8 +320,8 @@ func runV2() error {
 			}
 		}
 		choice, err := chooseV2(v2Menu{
-			title: "Accoding 启动器 v" + launcherVersion + " · " + channelName(s.Channel),
-			status: "Routilet · github.com/Routilet/accoding-companion\n\n" + statusV2(info, legacy, s.Channel),
+			title: "Routilet（阶段 01 测试版） v" + launcherVersion + " · " + channelName(s.Channel),
+			status: "Designed by Annouimo · github.com/Routilet/routilet\n\n" + statusV2(info, legacy, s.Channel),
 			note: note, options: options, check: check,
 		})
 		cancel()
