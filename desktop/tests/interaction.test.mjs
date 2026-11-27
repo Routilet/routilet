@@ -46,3 +46,11 @@ test('disabled apps remain manageable without install, launch or update',()=>{
  assert.equal(mergeLocal([a],[{...a,disabled:false,releaseStatus:'unknown',update:false}])[0].releaseStatus,'unknown');
  assert.equal(checkSummary([{...a,releaseStatus:'unknown'}],{releaseStatus:'available'}),'检查完成');
 });
+
+test('optional adapter installs without becoming a launchable GUI',()=>{
+ const a={id:'accoding-adapter',component:true,description:'在线组件',installed:'',available:'0.1.0-beta.1',releaseStatus:'available'};
+ assert.equal(appView(a).action,'安装');assert.equal(appView(a).enabled,true);
+ const installed={...a,installed:a.available};assert.equal(appView(installed).action,'已安装');assert.equal(appView(installed).enabled,false);assert.equal(appView(installed).manage,true);
+ assert.equal(appView({...installed,available:'0.1.0-beta.2',update:true}).update,true);
+ assert.equal(appView({...installed,disabled:true,update:true}).update,false);
+});

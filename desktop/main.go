@@ -51,10 +51,13 @@ func (d *Desktop) OpenData() error {
 
 func run() error {
  if len(os.Args)==2&&os.Args[1]=="--app-call-probe"{fmt.Println(appCallProtocol);return nil}
+ if len(os.Args)==2&&os.Args[1]=="--adapter-call-probe"{fmt.Println(adapterCallProtocol);return nil}
  if len(os.Args)==2&&os.Args[1]=="--manager-probe"{fmt.Println("routilet-manager/1 "+buildVersion);return nil}
  if len(os.Args)==2 && os.Args[1]=="--self-test" { return selfTest() }
  if len(os.Args)==4&&os.Args[1]=="--self-update-test"{return selfUpdateTest(os.Args[2],os.Args[3])}
  m,err:=newManager();if err!=nil{return err}
+ if len(os.Args)==3&&os.Args[1]=="--adapter-stdio"{return m.callAdapter(os.Args[2],os.Stdin,os.Stdout)}
+ if len(os.Args)==3&&os.Args[1]=="--adapter-available"{return m.adapterAvailable(os.Args[2])}
  if len(os.Args)>1&&(os.Args[1]=="--open-app"||os.Args[1]=="--query-app"){
   c,e:=parseAppCall(os.Args[1:]);if e!=nil{return e}
   if p:=os.Getenv("ROUTILET_BOOTSTRAP");p!=""{if e=m.setBootstrap(p);e!=nil{return e}}

@@ -7,7 +7,7 @@ import {chromium} from '../out/ui-tools/node_modules/playwright/index.mjs';
 const root=resolve('frontend');
 const types={'.html':'text/html','.js':'text/javascript','.css':'text/css','.svg':'image/svg+xml'};
 const runtime="export const Call={ByName:(name,...args)=>window.__bridge(name.split('.').at(-1),...args)}";
-async function setup(t,{installed='',available='0.2.0',releaseStatus='available',selfUpdate=false,launchFails=false,holdCheck=false}={}){
+async function setup(t,{installed='',available='0.2.0',releaseStatus='available',selfUpdate=false,launchFails=false,holdCheck=false,withAdapter=false}={}){
  const server=createServer(async(req,res)=>{
   try{
    const pathname=new URL(req.url,'http://localhost').pathname;
@@ -20,11 +20,11 @@ async function setup(t,{installed='',available='0.2.0',releaseStatus='available'
  await new Promise(r=>server.listen(0,'127.0.0.1',r));const browser=await chromium.launch({headless:true});
  t.after(async()=>{await browser.close();await new Promise(r=>server.close(r))});
  const page=await browser.newPage({viewport:{width:420,height:300}});const errors=[];page.on('pageerror',e=>errors.push(e.message));
- await page.addInitScript(({installed,available,releaseStatus,selfUpdate,launchFails,holdCheck})=>{
-  const state={installed,available,releaseStatus,selfUpdate,launchFails,holdCheck,channel:'stable',pending:false,disabled:false,calls:[],progress:null,finish:null,held:null};
+ await page.addInitScript(({installed,available,releaseStatus,selfUpdate,launchFails,holdCheck,withAdapter})=>{
+  const state={installed,available,releaseStatus,selfUpdate,launchFails,holdCheck,channel:'stable',pending:false,disabled:false,adapterInstalled:'',adapterDisabled:false,calls:[],progress:null,finish:null,held:null};
   window.fixture=state;
-  const local=()=>[{id:'companion',name:'Companion',description:'代码管理',releaseStatus:'development',installed:''},{id:'observer',name:'Observer',description:'程序运行观察',installed:state.installed,disabled:state.disabled,previous:state.installed?'0.1.9':'',releaseStatus:'unknown',available:''}];
-  const checked=()=>local().map(a=>a.id==='companion'?a:state.disabled?{...a,releaseStatus:'disabled'}:{...a,releaseStatus:state.releaseStatus,available:state.releaseStatus==='available'?state.available:'',update:!!a.installed&&a.installed!==state.available&&state.releaseStatus==='available',note:state.releaseStatus==='error'?'软件源 HTTP 503':''});
+  const local=()=>[{id:'companion',name:'Companion',description:'代码管理',releaseStatus:'development',installed:''},{id:'observer',name:'Observer',description:'程序运行观察',installed:state.installed,disabled:state.disabled,previous:state.installed?'0.1.9':'',releaseStatus:'unknown',available:''},...(withAdapter?[{id:'accoding-adapter',name:'Accoding Adapter',description:'Accoding 在线评测接入',component:true,installed:state.adapterInstalled,disabled:state.adapterDisabled,releaseStatus:'unknown',available:''}]:[])];
+  const checked=()=>local().map(a=>a.id==='companion'?a:a.component?{...a,releaseStatus:a.disabled?'disabled':'available',available:a.disabled?'':'0.1.0-beta.1',update:false}:state.disabled?{...a,releaseStatus:'disabled'}:{...a,releaseStatus:state.releaseStatus,available:state.releaseStatus==='available'?state.available:'',update:!!a.installed&&a.installed!==state.available&&state.releaseStatus==='available',note:state.releaseStatus==='error'?'软件源 HTTP 503':''});
   const self=()=>({version:'0.1.2',releaseStatus:'unknown',pending:state.pending,pendingVersion:state.pending?'0.1.3':''});
   window.__bridge=async(method,...args)=>{
    state.calls.push([method,...args]);
@@ -36,11 +36,11 @@ async function setup(t,{installed='',available='0.2.0',releaseStatus='available'
     return result;
    }
    if(method==='SelfInfo')return {...self(),releaseStatus:'available',available:'0.1.3',update:state.selfUpdate&&!state.pending};
-   if(method==='SetDisabled'){state.disabled=args[1];return}
+   if(method==='SetDisabled'){if(args[0]==='accoding-adapter')state.adapterDisabled=args[1];else state.disabled=args[1];return}
    if(method==='Channel')return state.channel;
    if(method==='SetChannel'){state.channel=args[0];state.releaseStatus='available';return}
    if(method==='Progress')return state.progress||{};
-   if(method==='InstallVersion'){state.installed=args[1];return}
+   if(method==='InstallVersion'){if(args[0]==='accoding-adapter')state.adapterInstalled=args[1];else state.installed=args[1];return}
    if(method==='Launch'){if(state.launchFails)throw Error('启动失败');return}
    if(method==='UpdateSelfVersion'){
     state.progress={id:'routilet',active:true,cancellable:true,total:5,added:2,stage:'下载与安装'};
@@ -51,7 +51,7 @@ async function setup(t,{installed='',available='0.2.0',releaseStatus='available'
    if(method==='RollbackTo'||method==='Uninstall'||method==='Ready'||method==='Close'||method==='OpenData'||method==='Shortcut')return;
    throw Error('Unexpected RPC '+method);
   };
- },{installed,available,releaseStatus,selfUpdate,launchFails,holdCheck});
+ },{installed,available,releaseStatus,selfUpdate,launchFails,holdCheck,withAdapter});
  await page.goto('http://127.0.0.1:'+server.address().port);
  await page.getByRole('button',{name:'Companion 开发中'}).waitFor();
  t.after(()=>assert.deepEqual(errors,[]));
@@ -119,4 +119,20 @@ test('disable and enable without uninstall; data directory only in settings',asy
  await p.getByRole('button',{name:'Observer 打开'}).waitFor();assert.equal(await p.locator('#data').count(),0);
  await p.getByRole('button',{name:'设置',exact:true}).click();await p.getByRole('button',{name:'打开数据目录'}).click();
  await p.waitForFunction(()=>fixture.calls.some(c=>c[0]==='OpenData'));
+});
+
+test('optional components are always expanded, installation keeps launcher open',async t=>{
+ const p=await setup(t,{installed:'0.2.0',withAdapter:true});
+ const section=p.getByRole('region',{name:'可选组件'});
+ const install=section.getByRole('button',{name:'Accoding Adapter 安装'});
+ await install.waitFor();assert.equal(await section.isVisible(),true);
+ assert.equal(await p.locator('#apps [aria-label^="Accoding Adapter"]').count(),0);
+ await install.click();const ready=section.getByRole('button',{name:'Accoding Adapter 已安装'});await ready.waitFor();
+ assert.equal(await ready.isDisabled(),true);
+ assert.equal(await p.evaluate(()=>fixture.calls.some(c=>c[0]==='Launch'||c[0]==='Close')),false);
+ await section.getByRole('button',{name:'管理 Accoding Adapter'}).click();
+ assert.equal(await p.getByRole('menuitem',{name:'创建桌面快捷方式'}).count(),0);
+ await p.getByRole('menuitem',{name:'禁用',exact:true}).click();
+ await section.getByRole('button',{name:'Accoding Adapter 已禁用'}).waitFor();
+ assert.equal(await section.isVisible(),true);
 });

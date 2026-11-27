@@ -4,7 +4,7 @@ import {$,element,ask} from './dialogs.js';
 import {openMenu,closeMenu} from './menu.js';
 const call=(method,...args)=>Call.ByName('main.Desktop.'+method,...args);
 const s=new Session(),rows=new Map();
-const section=$('#apps'),refresh=$('#refresh'),selfAction=$('#self-action'),settings=$('#settings');
+const section=$('#apps'),components=$('#components'),componentList=$('#component-list'),refresh=$('#refresh'),selfAction=$('#self-action'),settings=$('#settings');
 const settingsDialog=$('#settings-dialog'),channelSelect=$('#release-channel'),channelNote=$('#channel-note'),clean=$('#clean'),settingsClose=$('#settings-close');
 const taskPanel=$('#task'),taskStage=$('#task-stage'),taskDetail=$('#task-detail'),taskBar=$('#task-bar'),taskCancel=$('#task-cancel');
 const checkStatus=$('#check-status'),notice=$('#notice'),version=$('#version');
@@ -21,17 +21,20 @@ function createRow(id) {
  launch.onclick=()=>{const a=appById(id);if(!a||s.busy||!appView(a).enabled)return;void perform(a,a.installed?'launch':'install')};
  update.onclick=()=>{const a=appById(id);if(a&&!s.busy&&appView(a).update)void perform(a,'update')};
  more.setAttribute('aria-haspopup','menu');more.setAttribute('aria-expanded','false');more.onclick=()=>{const a=appById(id);if(a&&!s.busy)manage(a,more)};
- section.append(row);const record={row,launch,name,desc,indicator,update,more};rows.set(id,record);return record;
+ (appById(id)?.component?componentList:section).append(row);const record={row,launch,name,desc,indicator,update,more};rows.set(id,record);return record;
 }
 function render(){
+ components.hidden=!s.apps.some(a=>a.component);
  for(const app of s.apps){
   const r=rows.get(app.id)||createRow(app.id),v=appView(app);
+  const target=app.component?componentList:section;
+  if(r.row.parentElement!==target)target.append(r.row);
   r.name.textContent=app.name;r.desc.textContent=v.description;r.indicator.textContent=v.action;
   r.launch.disabled=s.busy||!v.enabled;r.launch.title=app.preferenceError||app.localError||app.note||v.action+' '+app.name;
   r.launch.setAttribute('aria-label',app.name+' '+v.action);
   r.update.hidden=!v.update;r.update.disabled=s.busy;r.update.title='更新至 v'+app.available;
   r.more.hidden=!v.manage;r.more.disabled=s.busy;r.more.title='管理 '+app.name;r.more.setAttribute('aria-label','管理 '+app.name);
-  r.row.classList.toggle('unavailable',!v.enabled);
+  r.row.classList.toggle('unavailable',!v.enabled&&!(app.component&&app.installed&&!app.disabled&&!app.preferenceError));
   if(!v.manage&&r.more.getAttribute('aria-expanded')==='true')closeMenu();
  }
  for(const [id,r] of rows){if(!appById(id)){r.row.remove();rows.delete(id)}}
@@ -74,7 +77,8 @@ async function check(){
 function manage(a,button){
  const actions=[];
  if(a.installed&&!a.disabled&&!a.preferenceError){
-  actions.push({label:'创建桌面快捷方式',run:()=>perform(a,'shortcut')},{separator:true},{label:'修复安装',run:()=>confirmOperation(a,'repair')});
+  if(!a.component)actions.push({label:'创建桌面快捷方式',run:()=>perform(a,'shortcut')},{separator:true});
+  actions.push({label:'修复安装',run:()=>confirmOperation(a,'repair')});
   if(a.previous)actions.push({label:'回退至 v'+a.previous,run:()=>confirmOperation(a,'rollback')});
   actions.push({separator:true});
  }
@@ -110,19 +114,19 @@ async function perform(a,mode){
  if(installing)poll(task);
  try{
   if(mode==='self')await call('UpdateSelfVersion',a.available);
-  else if(mode==='install'||mode==='update'){await call('InstallVersion',a.id,a.available);installed=mode==='install'}
+  else if(mode==='install'||mode==='update'){await call('InstallVersion',a.id,a.available);installed=mode==='install'&&!a.component}
   else if(mode==='enable'||mode==='disable')await call('SetDisabled',a.id,mode==='disable');
   else if(mode==='repair')await call('Repair',a.id);
   else if(mode==='rollback')await call('RollbackTo',a.id,a.previous);
   else if(mode==='uninstall'||mode==='shortcut')await call(mode==='uninstall'?'Uninstall':'Shortcut',a.id);
   // Always reconcile persisted state before launching, including first install.
   task.installing=false;task.progress=null;clearTimeout(task.timer);
-  if(mode==='install'||mode==='launch'){
+  if((mode==='install'||mode==='launch')&&!a.component){
    task.label='正在打开 '+a.name+'…';renderTask();
    if(mode==='install')await local();
    await call('Launch',a.id);await call('Close');closing=true;s.finishTask(task);render();
   }else{
-   const done={update:'已更新',repair:'已修复',rollback:'已回退',uninstall:'已卸载',shortcut:'快捷方式已创建',enable:'已启用',disable:'已禁用',self:'新版已准备就绪，退出后重新打开'};
+   const done={install:'已安装',update:'已更新',repair:'已修复',rollback:'已回退',uninstall:'已卸载',shortcut:'快捷方式已创建',enable:'已启用',disable:'已禁用',self:'新版已准备就绪，退出后重新打开'};
    feedback(mode==='self'?done.self:a.name+' '+done[mode],mode==='self');
   }
  }catch(e){operationError=e}

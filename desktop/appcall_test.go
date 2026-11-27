@@ -5,6 +5,7 @@ import (
  "crypto/sha256"
  "encoding/hex"
  "encoding/json"
+ "io"
  "os"
  "path/filepath"
  "reflect"
@@ -18,6 +19,8 @@ import (
 func TestMain(m *testing.M){
  if os.Getenv("ROUTILET_APP_CALL_TEST")=="1"&&len(os.Args)>1{
   switch os.Args[1]{
+  case "--stdio":
+   if _,e:=io.Copy(os.Stdout,os.Stdin);e!=nil{os.Exit(12)};os.Exit(0)
   case "--capabilities":
    os.Stdout.WriteString("{\"sessionSchemaVersions\":[1]}\n");os.Exit(0)
   case "--version":
@@ -92,4 +95,33 @@ func TestQueryOutputBound(t *testing.T){
  var b queryBuffer
  p:=bytes.Repeat([]byte("x"),maxQueryOutput+1)
  if n,e:=b.Write(p);n!=len(p)||e!=nil||!b.overflow||b.b.Len()!=maxQueryOutput{t.Fatal(n,e,b.overflow,b.b.Len())}
+}
+
+func TestAdapterComponentProtectedStdio(t *testing.T){
+ m,_,_:=appCallFixture(t)
+ s,_:=spec("accoding-adapter");snap:=filepath.Join(m.appDir(s),"release-adapter")
+ pkg:=filepath.Join(snap,"node_modules",filepath.FromSlash(s.Package))
+ if e:=os.MkdirAll(pkg,0700);e!=nil{t.Fatal(e)}
+ exe,e:=os.Executable();if e!=nil{t.Fatal(e)};raw,e:=os.ReadFile(exe);if e!=nil{t.Fatal(e)}
+ name:="fixture.exe";if e=os.WriteFile(filepath.Join(pkg,name),raw,0700);e!=nil{t.Fatal(e)}
+ sum:=sha256.Sum256(raw);manifest:=map[string]any{"schemaVersion":1,"version":"0.1.0-beta.1","adapter":"accoding","protocol":"routilet-oj-adapter/1","platforms":map[string]any{target():map[string]string{"path":name,"sha256":hex.EncodeToString(sum[:])}}}
+ b,_:=json.Marshal(manifest);if e=os.WriteFile(filepath.Join(pkg,"manifest.json"),b,0600);e!=nil{t.Fatal(e)}
+ if e=atomicJSON(filepath.Join(m.appDir(s),"activation.json"),activation{Snapshot:"release-adapter",Version:"0.1.0-beta.1"});e!=nil{t.Fatal(e)}
+ if e=m.adapterAvailable(s.ID);e!=nil{t.Fatal(e)}
+ if e=m.launch(s.ID);e==nil{t.Fatal("component launched as GUI")};if e=m.shortcut(s.ID);e==nil{t.Fatal("component shortcut")}
+ if _,e=parseAppCall([]string{"--open-app",s.ID,"--wait","--","--stdio"});e==nil{t.Fatal("arbitrary launch")}
+ in,w,e:=os.Pipe();if e!=nil{t.Fatal(e)};defer in.Close();defer w.Close()
+ out,rw,e:=os.Pipe();if e!=nil{t.Fatal(e)};defer out.Close();defer rw.Close()
+ done:=make(chan error,1);go func(){done<-m.callAdapter(s.ID,in,rw)}()
+ if _,e=w.WriteString("hello\n");e!=nil{t.Fatal(e)}
+ got:=make(chan string,1);go func(){b:=make([]byte,6);_,_ = io.ReadFull(out,b);got<-string(b)}()
+ select{case v:=<-got:if v!="hello\n"{t.Fatal(v)};case <-time.After(5*time.Second):t.Fatal("stdio not forwarded")}
+ if e=m.setDisabled(s.ID,true);e!=nil{t.Fatal(e)}
+ if e=m.adapterAvailable(s.ID);e==nil{t.Fatal("disabled adapter available")}
+ if e=m.uninstall(s.ID);e!=nil{t.Fatal(e)}
+ if _,e=os.Stat(snap);e!=nil{t.Fatal("active session lost snapshot",e)}
+ w.Close()
+ select{case e:=<-done:if e!=nil{t.Fatal(e)};case <-time.After(5*time.Second):t.Fatal("EOF did not close adapter")}
+ if r,e:=m.clean();e!=nil||len(r.Failed)!=0{t.Fatal(r,e)}
+ if _,e=os.Stat(snap);!os.IsNotExist(e){t.Fatal("snapshot not cleaned",e)}
 }

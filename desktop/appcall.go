@@ -29,7 +29,7 @@ func parseAppCall(args []string)(appCall,error){
  if len(args)<2{return c,errors.New("需要应用 ID")}
  c.id=args[1];c.query=args[0]=="--query-app"
  if c.id=="routilet"{return c,errors.New("不能通过应用调用启动管理器")}
- if _,e:=spec(c.id);e!=nil{return c,e}
+ if s,e:=spec(c.id);e!=nil{return c,e}else if s.component(){return c,errors.New("组件只能通过专用协议调用")}
  rest:=args[2:]
  if !c.query&&len(rest)>0&&rest[0]=="--wait"{c.wait=true;rest=rest[1:]}
  if len(rest)>0{
@@ -89,6 +89,7 @@ func (b *queryBuffer) Write(p []byte)(int,error){
 // is the actual child status on both platforms (not macOS open's status).
 // An unexpected supervisor death leaves the marker conservatively in place.
 func(m *Manager) callApp(c appCall,stdout,stderr io.Writer)error{
+ if s,e:=spec(c.id);e!=nil{return e}else if s.component(){return errors.New("组件只能通过专用协议调用")}
  if !c.wait&&!c.query&&len(c.args)==0{return m.launch(c.id)}
  s,a,entry,marker,e:=m.pinApp(c);if e!=nil{return e}
  if !c.wait&&!c.query{
