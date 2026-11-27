@@ -9,7 +9,7 @@ Routilet 源于 routine：减少重复性工作，使人专注于真正值得思
 - 固定原生 pnpm 12.22.0；官方 npm 仓库、版本化快照、回退及离线启动。
 - Observer 与 Companion 使用独立原生 npm 包（`@routilet/c-observer`、`@routilet/companion`），当前通道无兼容版本时不可安装。
 
-完整解压后运行 Routilet.exe / Routilet.app。首次入口及随附 pnpm 不要拆开。macOS ad-hoc 签名、未公证；Windows 使用系统 WebView2。底部“数据目录”打开安装数据；不自动迁移课程或旧启动台数据。
+完整解压 ZIP：Windows 打开 Routilet 文件夹，双击 Routilet.exe，保留 runtime/；macOS 直接打开 Routilet.app。首次入口及随附 pnpm 不要拆开。macOS ad-hoc 签名、未公证；Windows 使用系统 WebView2。设置中的“打开数据目录”打开安装数据；不自动迁移课程或旧启动台数据。
 
 ## 开发与文档
 - [正式桌面源码](desktop/) · [技术说明及真机验收](desktop/README.md)
