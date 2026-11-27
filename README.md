@@ -1,38 +1,20 @@
 # Routilet
 
-轻量桌面应用管理器，为 Routilet 旗下独立应用提供统一的安装、更新、回退、启动与运行环境管理。
+轻量应用启动台：展示、打开、安装与更新 Routilet 旗下独立应用。Go + Wails，固定原生 pnpm，npm 官方仓库。无需用户安装 Node.js。
 
-**当前状态：阶段 01 独立 Launcher v2 迁移审核中，未正式发布。** 现有 Accoding Launcher 及 Companion 正式版本继续可用。当前仅支持固定 Companion 根依赖和旧 TUI，不代表目标架构已经实现。
+当前首发版本：0.1.0。以 [GitHub Releases](https://github.com/Routilet/routilet/releases) 实际发行资产和 [npm](https://www.npmjs.com/package/@routilet/routilet) 状态为准。Companion、Observer 新版仍在开发，实际应用接入在首次发行之后验收；本版不替代现有课程工具。
 
-## 独立构建与测试
+## 使用
+Windows 11 x64 下载 ZIP；Apple Silicon macOS 下载 TAR.GZ，完整解压后打开 Routilet.exe / Routilet.app。系统 WebView2 / WKWebView；Mac ad-hoc 签名、未公证。固定初始入口与随附 pnpm 不要拆开或移动。首页底部“数据目录”可直接打开安装数据；macOS ~/Library/Application Support/Routilet，Windows %APPDATA%/Routilet。旧安装与课程配置不自动迁移。
 
-需要 Go 1.24.9、Node.js 22.12+（CI 使用 24）及 npm。无需 checkout Companion 或安装其 TypeScript 依赖。
+## 开发
+新桌面启动台源码暂保留在 [experiments/launcher-gui](experiments/launcher-gui)，避免在首次发行时移动已验证的构建路径。旧 launcher/ 保留为历史兼容基线，不参与新发行。
 
-```sh
-cd launcher
-go test ./...
-go vet ./...
-go build -o routilet .
-```
+- [新路线图](docs/roadmap.md)
+- [启动台技术说明](experiments/launcher-gui/README.md)
+- [发行说明](docs/release-notes.md)
+- [正式发布工作流](.github/workflows/publish-npm.yml)
 
-从仓库根目录执行 npm 本地假包测试（不发布任何包）：
+发行由 main 的 VERSION 变更触发；手动 dispatch 可重试。npm 与 GitHub Release 独立发布，使用同一构建的校验产物。npm trusted publisher 配置：GitHub Routilet/routilet，publish-npm.yml，允许 npm publish；首次若尚未建立授权需维护者完成 npm 设置或首次手动发布。不要在仓库保存令牌。
 
-```sh
-node --test tests/standalone/npm-dependency-probe.test.mjs
-```
-
-原生 CI 在 Windows amd64、macOS arm64 上额外设置 ACCODING_TEST_NODE_DOWNLOAD=1，下载并校验固定 Node 发行文件，在中文临时路径执行真实 npm 集成测试。原生打包：从仓库根目录执行 `bash scripts/package-launchers.sh dist`（Windows 使用 Git Bash）。macOS 产物为 tar.gz，保留执行权限及 ad-hoc 签名；Windows 产物为目录，由 Actions 打成 ZIP。
-
-**测试安全：** 阶段 01 保留旧 accoding-launcher 安装目录及 Companion 稳定/预览 profile 协议。手动运行测试产物必须使用专用 OS 测试账户、空白配置和测试课程，不要使用正式账号或课程。自动化测试使用临时目录和本地假包，不接管现有安装。
-
-## 结构
-
-- launcher/：独立 Go module、原 TUI、运行时和兼容入口。
-- launcher/internal/managed/：原事务安装、租约及清理内核。
-- tests/standalone/：npm 依赖解析实验。
-- docs/launcher/：原离线指南资源。
-- scripts/：独立打包与指南生成。
-
-[组织级架构](https://github.com/Routilet/.github/blob/main/docs/ecosystem.md) · [路线图](docs/roadmap.md) · [阶段 01](docs/phase-01.md) · [目标架构](docs/architecture.md) · [迁移报告](docs/phase-01-migration.md) · [测试报告](docs/phase-01-test-report.md)
-
-源项目及 MIT 许可见迁移报告和 LICENSE；原产品历史说明保留在 docs/launcher-v2.md。
+MIT · Routilet.
