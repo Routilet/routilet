@@ -1,0 +1,109 @@
+name: Standalone pnpm launcher experiment
+on:
+  push:
+    branches: [experiment/pnpm]
+    paths:
+      - 'experiments/pnpm-launcher/**'
+      - '.github/workflows/pnpm-launcher-experiment.yml'
+permissions:
+  contents: read
+jobs:
+  probe:
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - runner: windows-2025
+            target: win32-x64
+            archive: pnpm-win32-x64.zip
+            digest: 0a9c1bc147202089b12d91f43349f6f9ae26df191ee704dee313ba3f9a0a8ffe
+          - runner: macos-15
+            target: darwin-arm64
+            archive: pnpm-darwin-arm64.tar.gz
+            digest: af43c44f22ef89191d83163c3ef9f5ee021a7368f401c95d92731be7d6b21cc5
+    runs-on: ${{ matrix.runner }}
+    timeout-minutes: 20
+    defaults:
+      run:
+        working-directory: experiments/pnpm-launcher
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - uses: actions/setup-go@v5
+        with:
+          go-version: '1.24.9'
+          cache: false
+      - name: Go tests
+        shell: bash
+        run: |
+          go test ./...
+          go vet ./...
+      - name: Fetch fixed pnpm and build isolated launcher
+        shell: bash
+        env:
+          TARGET: ${{ matrix.target }}
+          ARCHIVE: ${{ matrix.archive }}
+          SHA256: ${{ matrix.digest }}
+        run: |
+          set -euo pipefail
+          mkdir -p out/extracted "out/launcher package"
+          curl --fail --location --retry 3 "https://github.com/pnpm/pnpm/releases/download/v12.22.0/$ARCHIVE" -o "out/$ARCHIVE"
+          if [[ "$TARGET" == win32-x64 ]]; then
+            printf '%s  %s\n' "$SHA256" "out/$ARCHIVE" | sha256sum -c -
+            unzip -q "out/$ARCHIVE" -d out/extracted
+            bin="$(find out/extracted -type f -iname 'pnpm*.exe' | head -n1)"
+            test -n "$bin"
+            cp "$bin" "out/launcher package/pnpm.exe"
+            go build -trimpath -ldflags="-s -w" -o "out/launcher package/routilet-pnpm-probe.exe" .
+          else
+            test "$(uname -m)" = arm64
+            printf '%s  %s\n' "$SHA256" "out/$ARCHIVE" | shasum -a 256 -c -
+            tar -xzf "out/$ARCHIVE" -C out/extracted
+            bin="$(find out/extracted -type f \( -name pnpm -o -name pnpm-darwin-arm64 \) | head -n1)"
+            test -n "$bin"
+            cp "$bin" "out/launcher package/pnpm"
+            chmod +x "out/launcher package/pnpm"
+            go build -trimpath -ldflags="-s -w" -o "out/launcher package/routilet-pnpm-probe" .
+            codesign --force --sign - "out/launcher package/routilet-pnpm-probe"
+            codesign --verify --strict "out/launcher package/routilet-pnpm-probe"
+            cp launch.command "out/launcher package/"
+            chmod +x "out/launcher package/launch.command"
+          fi
+          cp README.md "out/launcher package/"
+          cp -R out/extracted/. "out/upstream-release"
+          find out/upstream-release -type f -iname '*license*' -print
+          # Include upstream notices/metadata from the verified archive, not a second binary.
+          while IFS= read -r -d '' notice; do
+            cp "$notice" "out/launcher package/pnpm-$(basename "$notice")"
+          done < <(find out/extracted -type f \( -iname '*license*' -o -iname '*notice*' \) -print0)
+          if ! compgen -G "out/launcher package/pnpm-*LICENSE*" >/dev/null && ! compgen -G "out/launcher package/pnpm-*license*" >/dev/null; then
+            curl --fail --location --retry 3 https://raw.githubusercontent.com/pnpm/pnpm/v12.22.0/LICENSE -o "out/launcher package/pnpm-LICENSE"
+          fi
+          cp ../../LICENSE "out/launcher package/Routilet-LICENSE"
+          ls -l "out/launcher package"
+      - name: Package and run from fresh isolated path
+        shell: bash
+        env:
+          TARGET: ${{ matrix.target }}
+        run: |
+          set -euo pipefail
+          mkdir -p "out/测试 install"
+          if [[ "$TARGET" == win32-x64 ]]; then
+            (cd "out/launcher package" && powershell.exe -NoProfile -Command "Compress-Archive -Path * -DestinationPath ../routilet-pnpm-win32-x64.zip")
+            unzip -q out/routilet-pnpm-win32-x64.zip -d "out/测试 install"
+            "out/测试 install/routilet-pnpm-probe.exe" --self-test
+          else
+            tar -czf out/routilet-pnpm-darwin-arm64.tar.gz -C "out/launcher package" .
+            tar -xzf out/routilet-pnpm-darwin-arm64.tar.gz -C "out/测试 install"
+            "out/测试 install/routilet-pnpm-probe" --self-test
+          fi
+          ls -lh out/routilet-pnpm-*
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: routilet-pnpm-${{ matrix.target }}
+          path: |
+            experiments/pnpm-launcher/out/routilet-pnpm-*.zip
+            experiments/pnpm-launcher/out/routilet-pnpm-*.tar.gz
+          if-no-files-found: warn
