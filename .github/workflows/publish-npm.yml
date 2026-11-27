@@ -16,6 +16,7 @@ jobs:
     outputs:
       version: ${{ steps.version.outputs.version }}
       tag: ${{ steps.version.outputs.tag }}
+      existing: ${{ steps.release.outputs.existing }}
     steps:
       - uses: actions/checkout@v4
         with:
@@ -29,8 +30,22 @@ jobs:
           preview='^(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)-(alpha|beta|rc|dev)\.(0|[1-9][0-9]*)$'
           if [[ "$v" =~ $stable ]]; then tag=latest; elif [[ "$v" =~ $preview ]]; then tag=next; else exit 1; fi
           printf 'version=%s\ntag=%s\n' "$v" "$tag" >> "$GITHUB_OUTPUT"
+      - id: release
+        shell: bash
+        env:
+          VERSION: ${{ steps.version.outputs.version }}
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          code="$(curl --silent --show-error --output release-info.json --write-out '%{http_code}' --header "Authorization: Bearer $GH_TOKEN" "$GITHUB_API_URL/repos/$GITHUB_REPOSITORY/releases/tags/v$VERSION")"
+          case "$code" in
+            200) jq -e '.draft == false' release-info.json >/dev/null; echo existing=true >> "$GITHUB_OUTPUT" ;;
+            404) echo existing=false >> "$GITHUB_OUTPUT" ;;
+            *) echo "Release lookup failed: HTTP $code"; exit 1 ;;
+          esac
   build:
     needs: plan
+    if: needs.plan.outputs.existing == 'false'
     env:
       VERSION: ${{ needs.plan.outputs.version }}
     strategy:
@@ -200,6 +215,7 @@ jobs:
           if-no-files-found: error
   publish:
     needs: [plan, package-manager]
+    if: ${{ !cancelled() && needs.plan.result == 'success' && (needs.plan.outputs.existing == 'true' || needs.package-manager.result == 'success') }}
     runs-on: ubuntu-latest
     permissions:
       contents: read
@@ -214,9 +230,18 @@ jobs:
           registry-url: https://registry.npmjs.org
       - run: npm install --global 'npm@^11.21.0'
       - uses: actions/download-artifact@v4
+        if: needs.plan.outputs.existing == 'false'
         with:
           name: routilet-release-${{ env.VERSION }}
           path: release
+      - name: Reuse immutable published release assets
+        if: needs.plan.outputs.existing == 'true'
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          gh release download "v$VERSION" --repo "$GITHUB_REPOSITORY" --dir release --pattern "routilet-$VERSION.tgz" --pattern "routilet-$VERSION-*.zip" --pattern "routilet-$VERSION-*.tar.gz" --pattern SHA256SUMS
       - name: Publish exact verified package
         shell: bash
         env:
@@ -238,10 +263,11 @@ jobs:
             console.log('Already published, identical integrity');
           }else throw Error('Registry status '+r.status);
           NODE
-          if [[ -f publish-needed ]]; then npm publish "release/routilet-$VERSION.tgz" --access public --tag "$TAG"; fi
+          if [[ -f publish-needed ]]; then npm publish "./release/routilet-$VERSION.tgz" --access public --tag "$TAG"; fi
           echo "Verified publication: @routilet/routilet@$VERSION ($TAG)" >> "$GITHUB_STEP_SUMMARY"
   github-release:
     needs: [plan, package-manager]
+    if: needs.plan.outputs.existing == 'false'
     runs-on: ubuntu-latest
     permissions:
       contents: write
