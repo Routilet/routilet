@@ -5,6 +5,7 @@ import (
  "context"
  "encoding/json"
  "errors"
+ "fmt"
  "io"
  "os"
  "os/exec"
@@ -33,8 +34,8 @@ func(m *Manager) callAdapter(id string,stdin io.Reader,stdout io.Writer)error{
  _,_,entry,marker,e:=m.pinApp(appCall{id:id});if e!=nil{return e}
  cmd:=exec.Command(entry,"--stdio");cmd.Dir=filepath.Dir(entry);hideChild(cmd)
  cmd.Stdin=stdin;cmd.Stdout=stdout;cmd.Stderr=nil
- if e=cmd.Start();e!=nil{_ = os.RemoveAll(marker);return e}
- e=cmd.Wait();cleanup:=os.RemoveAll(marker);if e!=nil{return e};return cleanup
+ if e=cmd.Start();e!=nil{_ = os.RemoveAll(marker);return fmt.Errorf("适配器进程启动失败: %w",e)}
+ e=cmd.Wait();cleanup:=os.RemoveAll(marker);if e!=nil{return fmt.Errorf("适配器进程异常退出: %w",e)};return cleanup
 }
 // Check the candidate without credentials, network, or writable operations.
 func probeAdapter(parent context.Context,entry,version string)error{
@@ -42,7 +43,7 @@ func probeAdapter(parent context.Context,entry,version string)error{
  cmd:=exec.CommandContext(ctx,entry,"--stdio");cmd.Dir=filepath.Dir(entry);hideChild(cmd)
  cmd.Stdin=bytes.NewBufferString("{\"id\":1,\"method\":\"capabilities\",\"params\":{\"protocol\":\"routilet-oj-adapter/1\"}}\n")
  var out queryBuffer;cmd.Stdout=&out;cmd.Stderr=nil;cmd.WaitDelay=time.Second
- if e:=cmd.Run();e!=nil{return errors.New("适配器离线握手失败")}
+ if e:=cmd.Run();e!=nil{return fmt.Errorf("适配器离线握手失败: %w",e)}
  if out.overflow{return errors.New("适配器握手输出过大")}
  var r struct{ID int;Result struct{Adapter,Version,Protocol string;Methods []string};Error json.RawMessage}
  if json.Unmarshal(out.b.Bytes(),&r)!=nil||r.ID!=1||len(r.Error)!=0||r.Result.Adapter!="accoding"||r.Result.Version!=version||r.Result.Protocol!="routilet-oj-adapter/1"{return errors.New("适配器握手身份或版本不兼容")}

@@ -28,7 +28,7 @@ type appSpec struct { ID, Name, Description, Package, Channel string }
 var catalog=[]appSpec{
  {"companion","Companion","代码管理与本地评测","@routilet/companion","latest"},
  {"observer","Observer","程序运行观察","@routilet/c-observer","latest"},
- {"accoding-adapter","Accoding Adapter","Companion 可选在线评测组件","@routilet/accoding-adapter","latest"},
+ {"accoding-adapter","Accoding Adapter","Accoding 在线评测接入","@routilet/accoding-adapter","latest"},
 }
 func(s appSpec) component()bool{return s.ID=="accoding-adapter"}
 type AppState struct {

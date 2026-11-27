@@ -4,6 +4,7 @@
 <body><main>
 <header><div class="brand"><img src="/icons/routilet.svg" alt="" width="26" height="26"><h1>Routilet</h1></div><button id="refresh" class="icon-button" title="检查更新" aria-label="检查更新"><svg viewBox="0 0 24 24" fill="none"><path d="M20 11a8 8 0 1 0-2 6m2-13v7h-7" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"/></svg></button></header>
 <section id="apps" aria-label="应用"></section>
+<section id="components" aria-labelledby="components-title" hidden><h2 id="components-title">可选组件</h2><div id="component-list"></div></section>
 <section id="task" class="task" hidden aria-label="当前操作"><div class="task-head"><span id="task-stage" role="status"></span><button id="task-cancel" class="small-button">取消</button></div><progress id="task-bar" aria-label="操作进度"></progress><span id="task-detail" class="muted"></span></section>
 <div id="notice" role="status" hidden></div>
 <footer><div class="footer-meta"><span id="version"></span><button id="check-status" class="plain" disabled>尚未检查更新</button></div><div class="footer-actions"><button id="self-action" class="update" hidden></button><button id="settings" class="icon-button" title="设置" aria-label="设置"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3l2 2 3-.1 1 3 2 2-.9 3 1 3-3 1-2 2-3-.9-3 1-2-2-3-1 1-3-1-3 2-2 1-3 3 .1Z"/><circle cx="12" cy="12" r="3"/></svg></button></div></footer>
