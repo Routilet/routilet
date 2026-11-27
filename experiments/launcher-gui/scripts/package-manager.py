@@ -19,8 +19,10 @@ with tempfile.TemporaryDirectory() as d:
    app=dest/"Routilet.app";shutil.copytree(src,app,symlinks=True)
    entry=app/"Contents"/"MacOS"/"Routilet"
   platforms[target]={"executable":entry.relative_to(root).as_posix(),"sha256":hashlib.sha256(entry.read_bytes()).hexdigest()}
+  notices=src.parent/"NOTICES.txt"
+  if notices.is_file():shutil.copy2(notices,dest/"THIRD_PARTY_NOTICES.txt")
  if not platforms:raise SystemExit("no native artifacts")
- (root/"package.json").write_text(json.dumps({"name":"@routilet/routilet","version":a.version,"license":"MIT","description":"Routilet native application launcher","files":["bin","manifest.json","LICENSE"],"publishConfig":{"access":"public"}},indent=2),encoding="utf-8")
+ (root/"package.json").write_text(json.dumps({"name":"@routilet/routilet","version":a.version,"license":"MIT","description":"Routilet native application launcher","repository":{"type":"git","url":"git+https://github.com/Routilet/routilet.git"},"homepage":"https://github.com/Routilet/routilet","files":["bin","manifest.json","LICENSE"],"publishConfig":{"access":"public"}},indent=2),encoding="utf-8")
  (root/"manifest.json").write_text(json.dumps({"schemaVersion":1,"version":a.version,"platforms":platforms},indent=2),encoding="utf-8")
  shutil.copy2(pathlib.Path(__file__).resolve().parents[3]/"LICENSE",root/"LICENSE")
  a.out.parent.mkdir(parents=True,exist_ok=True)
