@@ -12,7 +12,7 @@ import(
  "time"
 )
 
-var buildVersion="0.1.2"
+var buildVersion="0.1.3"
 // Set only for the never-published CI fixture. Production builds leave empty.
 var fixtureMode=""
 var managerSpec=appSpec{"routilet","Routilet","应用启动台","@routilet/routilet","latest"}

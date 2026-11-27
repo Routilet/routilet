@@ -15,7 +15,7 @@ func TestUIReleaseState(t *testing.T){
  if err:=atomicJSON(filepath.Join(dir,"activation.json"),activation{Snapshot:"release-a",Version:"0.2.0",Previous:"release-b",PreviousVersion:"0.1.9"});err!=nil{t.Fatal(err)}
  status,body:=503,""
  m.client=&http.Client{Transport:tagTransport(func(r *http.Request)(*http.Response,error){return &http.Response{StatusCode:status,Body:io.NopCloser(strings.NewReader(body)),Header:make(http.Header)},nil})}
- local:=m.list();if local[0].ReleaseStatus!="development"||local[1].ReleaseStatus!="unknown"||local[1].Previous!="0.1.9"{t.Fatal(local)}
+ local:=m.list();if local[0].ReleaseStatus!="unknown"||local[1].ReleaseStatus!="unknown"||local[1].Previous!="0.1.9"{t.Fatal(local)}
  a:=m.check()[1];if a.ReleaseStatus!="error"||a.Note==""||a.Installed!="0.2.0"||a.Update{t.Fatal(a)}
  status,body=200,`{"version":"0.1.2"}`
  a=m.check()[1];if a.ReleaseStatus!="unavailable"||a.Update{t.Fatal(a)}
