@@ -60,11 +60,16 @@ async function local(){
 async function check(){
  const stamp=s.startCheck();if(stamp===null)return;
  render();
- const [apps,self]=await Promise.allSettled([call('Check'),call('SelfInfo')]);
- if(!s.current(stamp))return;
- if(apps.status==='fulfilled')s.apps=apps.value;else s.apps=s.apps.map(a=>a.releaseStatus==='development'?a:{...a,releaseStatus:'error',available:'',update:false,note:errorText(apps.reason).raw});
- if(self.status==='fulfilled')s.self=self.value;else s.self={...s.self,releaseStatus:'error',available:'',update:false,note:errorText(self.reason).raw};
- s.finishCheck(stamp);render();
+ const updateApps=async()=>{
+  try{const apps=await call('Check');if(s.current(stamp)){s.apps=apps;render()}}
+  catch(e){if(s.current(stamp)){s.apps=s.apps.map(a=>a.releaseStatus==='development'?a:{...a,releaseStatus:'error',available:'',update:false,note:errorText(e).raw});render()}}
+ };
+ const updateSelf=async()=>{
+  try{const info=await call('SelfInfo');if(s.current(stamp)){s.self=info;render()}}
+  catch(e){if(s.current(stamp)){s.self={...s.self,releaseStatus:'error',available:'',update:false,note:errorText(e).raw};render()}}
+ };
+ await Promise.all([updateApps(),updateSelf()]);
+ if(s.finishCheck(stamp))render();
 }
 function manage(a,button){
  const actions=[{label:'创建桌面快捷方式',run:()=>perform(a,'shortcut')},{separator:true},{label:'修复安装',run:()=>confirmOperation(a,'repair')}];

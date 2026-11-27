@@ -14,7 +14,7 @@ async function setup(t,{installed='',available='0.2.0',releaseStatus='available'
    if(pathname==='/wails/runtime.js'){res.writeHead(200,{'Content-Type':'text/javascript'});res.end(runtime);return}
    const file=resolve(root,'.'+(pathname==='/'?'/index.html':pathname));
    if(!file.startsWith(root+'/')){res.writeHead(403);res.end();return}
-   res.writeHead(200,{'Content-Type':types[extname(file)]||'text/plain'});res.end(await readFile(file));
+   const data=await readFile(file);res.writeHead(200,{'Content-Type':types[extname(file)]||'text/plain'});res.end(data);
   }catch{res.writeHead(404);res.end()}
  });
  await new Promise(r=>server.listen(0,'127.0.0.1',r));const browser=await chromium.launch({headless:true});
@@ -72,7 +72,7 @@ test('install is direct; launch failure reconciles actual installation',async t=
  const p=await setup(t,{launchFails:true});
  await p.getByRole('button',{name:'Observer 安装'}).click();
  await p.getByRole('dialog',{name:'已安装 Observer，但打开失败'}).waitFor();
- assert.equal(await p.getByRole('button',{name:'Observer 打开'}).isVisible(),true);
+ assert.equal(await p.locator('button[aria-label="Observer 打开"]').isVisible(),true);
  assert.deepEqual(await p.evaluate(()=>fixture.calls.find(c=>c[0]==='InstallVersion')),['InstallVersion','observer','0.2.0']);
  await p.getByRole('button',{name:'关闭',exact:true}).click();
  assert.equal(await p.getByRole('button',{name:'Observer 打开'}).isEnabled(),true);

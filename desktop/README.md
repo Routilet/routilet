@@ -44,7 +44,7 @@ Go + Wails v3.1.0，静态 Web 前端，固定 pnpm 12.22.0 随包分发；使�
 
 ## v0.1.2 交互验收
 
-前端仍为原生 JS：state.js 为纯状态模型，app.js 负责协调，dialogs.js 和 menu.js 分别处理确认及菜单。运行 `node --test tests/interaction.test.mjs` 验证关键状态规则。CI 不执行真实 WebView 交互。验收矩阵：
+前端仍为原生 JS：state.js 为纯状态模型，app.js 负责协调，dialogs.js 和 menu.js 分别处理确认及菜单。运行 `node --test tests/interaction.test.mjs` 验证关键状态规则。CI 另用测试专用 Chromium 和模拟 Wails 桥执行浏览器交互测试，不将 Chromium 打入应用，也不等同于真实系统 WebView 交互。验收矩阵：
 
 - 未发布/检查中/检查失败不可安装；已安装断网仍可打开；更新检查失败不显示“最新”。
 - 点击安装/更新直接开始；取消在激活前有效；安装成功但打开失败时保留已安装状态。

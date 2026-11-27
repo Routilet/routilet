@@ -210,6 +210,7 @@ func (m *Manager) installExpected(id string,repair bool,expected string)error{
  ctx:=job.ctx
  release,err:=m.operationLock();if err!=nil{return err};defer release()
  old,oldErr:=m.active(s)
+ if oldErr!=nil{old=activation{}}
  var version string
  if repair {if oldErr!=nil{return oldErr};version=old.Version}else{version,err=m.remoteContext(ctx,s);if err!=nil{return err}}
  if expected!=""&&version!=expected{return errors.New("可用版本已变化，请重新检查更新")}
