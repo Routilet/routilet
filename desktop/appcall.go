@@ -69,6 +69,7 @@ func (m *Manager) pinApp(c appCall)(appSpec,activation,string,string,error){
  unlock,e:=m.operationLock();if e!=nil{return s,a,"","",e};defer unlock()
  s,e=spec(c.id);if e!=nil{return s,a,"","",e}
  if s.ID=="routilet"||s.Package==""{return s,a,"","",errors.New("应用尚不可用")}
+ if e=m.requireEnabled(s);e!=nil{return s,a,"","",e}
  a,e=m.active(s);if os.IsNotExist(e){return s,a,"","",errors.New("应用尚未安装: "+s.Name)};if e!=nil{return s,a,"","",e}
  snap:=filepath.Join(m.appDir(s),a.Snapshot)
  entry,e:=nativeEntry(snap,s,a.Version);if e!=nil{return s,a,"","",e}

@@ -47,6 +47,7 @@ func (m *Manager) rollbackExpected(id,expected string)error{
  m.mu.Lock();defer m.mu.Unlock()
  done,err:=m.operationLock();if err!=nil{return err};defer done()
  s,err:=spec(id);if err!=nil{return err}
+ if err=m.requireEnabled(s);err!=nil{return err}
  a,err:=m.active(s);if err!=nil{return err}
  if a.Previous==""{return errors.New("没有可回退版本")}
  if expected!=""&&expected!=a.PreviousVersion{return errors.New("回退目标已变化，请重新检查")}
@@ -100,6 +101,7 @@ func (m *Manager) shortcut(id string)error{
  m.mu.Lock();defer m.mu.Unlock()
  done,err:=m.operationLock();if err!=nil{return err};defer done()
  s,err:=spec(id);if err!=nil{return err}
+ if err=m.requireEnabled(s);err!=nil{return err}
  if _,err=m.active(s);err!=nil{return err}
  // Shortcuts point to the stable original entry, never a versioned app.
  if runtime.GOOS=="windows"{
