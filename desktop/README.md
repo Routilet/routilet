@@ -68,3 +68,7 @@ Windows ZIP 内只有顶层 Routilet/，根目录包含 Routilet.exe、使用说
 ## Windows 原生安装布局（v0.1.5）
 
 Windows 新快照通过 pnpm-workspace.yaml 固定 hoisted/copy、store 完整性验证和禁用全局 virtual store；使用数据根 store-native，保留原 store 和已激活旧快照。macOS 不改。原生清单与 SHA256 仍为激活条件。缺失入口额外记录 Stat 及有限父目录内容。CI 实际安装 Observer 并检查普通物理目录和缓存重复修复；用户机器仍需复验。不要为了缺失文件关闭安全软件。
+
+## v0.1.6 可选组件
+
+首页“可选组件”固定展开，与独立应用分区。Accoding Adapter 采用 `@routilet/accoding-adapter`，通过现有全局发行通道独立管理，安装后不打开或退出启动台。详见 [调用协议](../docs/app-calls.md)。用户已确认 v0.1.5 Windows 实机安装正常；本版尚需 Companion 联调与实际在线评测验收。
