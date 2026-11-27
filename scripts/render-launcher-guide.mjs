@@ -1,6 +1,7 @@
 import fs from "node:fs/promises";
 const [source,output,companion,launcher,mode] = process.argv.slice(2);
-let html=await fs.readFile(source,"utf8");
+// Normalize checkout line endings before exact template replacements.
+let html=(await fs.readFile(source,"utf8")).replace(/\r\n/g,"\n");
 function replace(from,to) {
   if (!html.includes(from)) throw Error("Guide source has changed: "+from.slice(0,60));
   html=html.replace(from,()=>to);

@@ -65,6 +65,10 @@ jobs:
         run: |
           set -o pipefail
           node --test tests/standalone/npm-dependency-probe.test.mjs 2>&1 | tee test-logs/npm-probe.log
+      - name: Guide rendering LF and CRLF regression
+        run: |
+          set -o pipefail
+          node --test tests/standalone/render-launcher-guide.test.mjs 2>&1 | tee test-logs/guide-render.log
       - name: Build native test bundle
         run: bash scripts/package-launchers.sh dist
       - name: Upload Windows test bundle

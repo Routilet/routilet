@@ -1,6 +1,6 @@
 # 阶段 01 测试报告
 
-状态：待 CI 运行及维护者实机验收。不得将计划视为通过。
+状态：原生 CI 核心测试双平台通过；Mac 打包通过，Windows 打包失败后修复待复验；维护者实机验收待完成。
 
 | 检查 | 自动化证据 | Windows 11 amd64 实机 | macOS arm64 实机 |
 | --- | --- | --- | --- |
@@ -23,3 +23,7 @@ CI：[Phase 01 native verification](https://github.com/Routilet/routilet/actions
 本次执行容器为 Linux Go 1.23.2，网络无法解析 GitHub，不能在该容器独立下载所需 Go module/toolchain；原生 CI 是自动验证入口。维护者实机验收未完成。
 
 初次 [CI run 45944334693](https://github.com/Routilet/routilet/actions/runs/45944334693) 的 macos-14 runner 未分配即取消；该镜像已于 2026-11-02 [退役](https://github.com/actions/runner-images/issues/13518)。改用 macos-15（arm64），仍在 CI 中强制检查宿主架构。
+
+## CI run #2 实际结果（d5e4baf）
+
+[运行 45944392044](https://github.com/Routilet/routilet/actions/runs/45944392044)：两平台 go test（含 Node 下载校验、中文路径、本地 registry）、go vet、npm probe 均通过。macOS arm64 构建、签名校验及上传通过，[Mac 产物](https://github.com/Routilet/routilet/actions/runs/45944392044/artifacts/15174082237)。Windows 在生成 HTML 指南时因多行模板匹配失败（疑为 CRLF）中断，尚未执行最终 go build；[Windows 日志](https://github.com/Routilet/routilet/actions/runs/45944392044/job/140325658938)。修复读取模板时归一化 CRLF，并增加 LF/CRLF 输出一致性测试；修复后的 CI 结果待核实。
