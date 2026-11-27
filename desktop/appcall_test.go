@@ -125,3 +125,20 @@ func TestAdapterComponentProtectedStdio(t *testing.T){
  if r,e:=m.clean();e!=nil||len(r.Failed)!=0{t.Fatal(r,e)}
  if _,e=os.Stat(snap);!os.IsNotExist(e){t.Fatal("snapshot not cleaned",e)}
 }
+
+func TestLaunchReleasesLockBeforeSupervisor(t *testing.T){
+ m,s,snap:=appCallFixture(t)
+ called:=false
+ e:=m.launchWith(s.ID,func(spec appSpec,a activation,marker string,args []string)error{
+  called=true
+  if spec.ID!=s.ID||a.Snapshot!="release-fixture"||len(args)!=0{t.Fatal(spec,a,args)}
+  if st,e:=os.Stat(marker);e!=nil||!st.IsDir(){t.Fatal("missing run protection",e)}
+  unlock,e:=m.operationLock();if e!=nil{t.Fatal("child could not acquire operation lock",e)};unlock()
+  if e=m.uninstall(s.ID);e!=nil{t.Fatal(e)}
+  if _,e=os.Stat(snap);e!=nil{t.Fatal("pinned snapshot removed",e)}
+  return os.RemoveAll(marker)
+ })
+ if e!=nil||!called{t.Fatal(e,called)}
+ if r,e:=m.clean();e!=nil||len(r.Failed)!=0{t.Fatal(r,e)}
+ if _,e=os.Stat(snap);!os.IsNotExist(e){t.Fatal("unused snapshot not cleaned",e)}
+}
