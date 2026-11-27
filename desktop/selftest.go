@@ -22,13 +22,22 @@ func selfTest()error{
  out,err:=exec.Command(path,"--version").CombinedOutput();if err!=nil{return fmt.Errorf("native smoke: %w %s",err,out)}
  if strings.TrimSpace(string(out))!="0.25.12"{return fmt.Errorf("wrong native version: %s",out)}
  fmt.Println("PASS: bundled pnpm and native npm installation")
- // Companion uses the new package, never legacy Accoding.
+ // Companion uses the new package, never legacy Accoding. Validate both
+ // release channels, skipping only confirmed absent/incompatible releases.
  companion,_:=spec("companion")
- cv,err:=m.remote(companion)
- if errors.Is(err,errNoRelease){fmt.Println("Companion availability:",err)}else if err!=nil{return fmt.Errorf("Companion registry: %w",err)}else{
-  if err=m.installExpected(companion.ID,false,cv);err!=nil{return fmt.Errorf("Companion %s: %w",cv,err)}
-  fmt.Println("PASS: Companion native manifest and hash",cv)
+ var lastCompanion string
+ for _,channel:=range []string{stableChannel,testChannel}{
+  if err=m.setChannel(channel);err!=nil{return err}
+  cv,e:=m.remote(companion)
+  if errors.Is(e,errNoRelease){fmt.Println("Companion "+channel+" availability:",e);continue}
+  if e!=nil{return fmt.Errorf("Companion %s registry: %w",channel,e)}
+  if cv!=lastCompanion{
+   if e=m.installExpected(companion.ID,false,cv);e!=nil{return fmt.Errorf("Companion %s: %w",cv,e)}
+   lastCompanion=cv
+  }
+  fmt.Println("PASS: Companion "+channel+" native manifest and hash",cv)
  }
+ if err=m.setChannel(stableChannel);err!=nil{return err}
  // Observer may not be published yet. Only report the actual result.
  observer,_:=spec("observer")
  v,err:=m.remote(observer)
