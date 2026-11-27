@@ -22,6 +22,11 @@ type Desktop struct {
 func (d *Desktop) List() []AppState { return d.manager.list() }
 func (d *Desktop) Check() []AppState { return d.manager.check() }
 func (d *Desktop) Install(id string) error { return d.manager.install(id) }
+func (d *Desktop) Repair(id string) error{return d.manager.installMode(id,true)}
+func (d *Desktop) Rollback(id string) error{return d.manager.rollback(id)}
+func (d *Desktop) Uninstall(id string) error{return d.manager.uninstall(id)}
+func (d *Desktop) Shortcut(id string) error{return d.manager.shortcut(id)}
+func (d *Desktop) Clean() error{return d.manager.clean()}
 func (d *Desktop) Launch(id string) error { return d.manager.launch(id) }
 func (d *Desktop) Close() { if !d.manager.progress().Active{d.native.Quit()} }
 func (d *Desktop) Progress() Progress {return d.manager.progress()}
@@ -34,8 +39,10 @@ func (d *Desktop) OpenData() error {
 
 func run() error {
  if len(os.Args)==2 && os.Args[1]=="--self-test" { return selfTest() }
- if len(os.Args)!=1 {return fmt.Errorf("unsupported arguments")}
  m,err:=newManager();if err!=nil{return err}
+ if len(os.Args)==6&&os.Args[1]=="--supervise"{return m.supervise(os.Args[2],os.Args[3],os.Args[4],os.Args[5])}
+ if len(os.Args)==3&&os.Args[1]=="--open-app"{return m.launch(os.Args[2])}
+ if len(os.Args)!=1 {return fmt.Errorf("unsupported arguments")}
  d:=&Desktop{manager:m}
  frontend,err:=fs.Sub(assets,"frontend");if err!=nil{return err}
  app:=application.New(application.Options{

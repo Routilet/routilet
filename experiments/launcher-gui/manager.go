@@ -36,16 +36,17 @@ type AppState struct {
  Installed string `json:"installed"`
  Available string `json:"available"`
  Update bool `json:"update"`
+ Rollback bool `json:"rollback"`
  Note string `json:"note"`
 }
 type Manager struct {
- root,pnpm string
+ root,pnpm,bootstrap string
  client *http.Client
  mu sync.Mutex
  jobMu sync.Mutex
  job *installJob
 }
-type activation struct { Snapshot, Version string }
+type activation struct { Snapshot, Version string; Previous, PreviousVersion string }
 type nativeManifest struct {
  SchemaVersion int `json:"schemaVersion"`
  Version string `json:"version"`
@@ -56,7 +57,7 @@ func newManager() (*Manager,error) {
  exe,err:=os.Executable();if err!=nil{return nil,err}
  config,err:=os.UserConfigDir();if err!=nil{return nil,err}
  name:="pnpm";if runtime.GOOS=="windows"{name+=".exe"}
- return &Manager{root:filepath.Join(config,"Routilet"),pnpm:filepath.Join(filepath.Dir(exe),name),client:&http.Client{Timeout:8*time.Second}},nil
+ return &Manager{root:filepath.Join(config,"Routilet"),bootstrap:exe,pnpm:filepath.Join(filepath.Dir(exe),name),client:&http.Client{Timeout:8*time.Second}},nil
 }
 func spec(id string)(appSpec,error){for _,s:=range catalog{if s.ID==id{return s,nil}};return appSpec{},errors.New("未知应用")}
 func (m *Manager) appDir(s appSpec)string{return filepath.Join(m.root,"apps",s.ID)}
@@ -65,7 +66,7 @@ func (m *Manager) active(s appSpec)(activation,error){
  var a activation
  b,err:=os.ReadFile(filepath.Join(m.appDir(s),"activation.json"));if err!=nil{return a,err}
  if err=json.Unmarshal(b,&a);err!=nil{return a,err}
- if !validSnapshot(a.Snapshot)||a.Version==""{return a,errors.New("安装记录无效")}
+ if !validSnapshot(a.Snapshot)||a.Version==""||(a.Previous!=""&&(!validSnapshot(a.Previous)||a.PreviousVersion=="")){return a,errors.New("安装记录无效")}
  return a,nil
 }
 func atomicJSON(path string,a activation)error{
@@ -73,7 +74,7 @@ func atomicJSON(path string,a activation)error{
  f,err:=os.CreateTemp(filepath.Dir(path),"activation-*.tmp");if err!=nil{return err}
  defer os.Remove(f.Name())
  if _,err=f.Write(b);err!=nil{f.Close();return err};if err=f.Sync();err!=nil{f.Close();return err}
- if err=f.Close();err!=nil{return err};return os.Rename(f.Name(),path)
+ if err=f.Close();err!=nil{return err};return replaceFile(f.Name(),path)
 }
 var observerVersion=regexp.MustCompile(`^0\.(?:[2-9]|[1-9][0-9]+)\.[0-9]+(?:-[0-9A-Za-z.-]+)?$|^[1-9][0-9]*\.[0-9]+\.[0-9]+(?:-[0-9A-Za-z.-]+)?$`)
 
@@ -98,7 +99,7 @@ func (m *Manager) list()[]AppState{
   a:=AppState{ID:s.ID,Name:s.Name,Description:s.Description}
   if s.Package==""{a.Note="新版开发中"}else{
    current,err:=m.active(s)
-   if err==nil{a.Installed=current.Version}else if !os.IsNotExist(err){a.Note="安装记录异常"}
+   if err==nil{a.Installed=current.Version;a.Rollback=current.Previous!=""}else if !os.IsNotExist(err){a.Note="安装记录异常"}
   }
   out=append(out,a)
  }
@@ -196,15 +197,19 @@ func (m *Manager) setupContext(ctx context.Context)error{
  if v!=pnpmVersion{return fmt.Errorf("需要随附的 pnpm %s，实际 %s",pnpmVersion,v)}
  return nil
 }
-func (m *Manager) install(id string)error{
+func (m *Manager) install(id string)error{return m.installMode(id,false)}
+func (m *Manager) installMode(id string,repair bool)error{
  s,err:=spec(id);if err!=nil{return err}
  if s.Package==""{return errors.New("新版尚未发布")}
  job,err:=m.beginJob(id);if err!=nil{return err}
  defer m.endJob(job)
  m.mu.Lock();defer m.mu.Unlock()
  ctx:=job.ctx
- version,err:=m.remoteContext(ctx,s);if err!=nil{return err}
- if old,e:=m.active(s);e==nil&&old.Version!=version&&!newer(version,old.Version){return errors.New("当前版本比发行渠道更新，不自动降级")}
+ release,err:=m.operationLock();if err!=nil{return err};defer release()
+ old,oldErr:=m.active(s)
+ var version string
+ if repair {if oldErr!=nil{return oldErr};version=old.Version}else{version,err=m.remoteContext(ctx,s);if err!=nil{return err}}
+ if oldErr==nil&&old.Version!=version&&!newer(version,old.Version){return errors.New("当前版本比发行渠道更新，不自动降级")}
  job.stage("准备安装")
  if err=m.setupContext(ctx);err!=nil{return err}
  dir:=m.appDir(s);if err=os.MkdirAll(dir,0700);err!=nil{return err}
@@ -215,8 +220,9 @@ func (m *Manager) install(id string)error{
  job.stage("校验应用")
  if _,err=nativeEntry(snap,s,version);err!=nil{return err}
  if err=job.commit();err!=nil{return err}
- if err=atomicJSON(filepath.Join(dir,"activation.json"),activation{filepath.Base(snap),version});err!=nil{return err}
+ if err=atomicJSON(filepath.Join(dir,"activation.json"),activation{Snapshot:filepath.Base(snap),Version:version,Previous:old.Snapshot,PreviousVersion:old.Version});err!=nil{return err}
  keep=true
+ m.cleanup(s)
  return nil
 }
 func (m *Manager) installPackage(snap,pkg,version string)error{return m.installPackageContext(context.Background(),nil,snap,pkg,version)}
@@ -229,19 +235,10 @@ func (m *Manager) installPackageContext(ctx context.Context,job *installJob,snap
 }
 func (m *Manager) launch(id string)error{
  m.mu.Lock();defer m.mu.Unlock()
+ release,err:=m.operationLock();if err!=nil{return err};defer release()
  s,err:=spec(id);if err!=nil{return err}
  a,err:=m.active(s);if err!=nil{return err}
- entry,err:=nativeEntry(filepath.Join(m.appDir(s),a.Snapshot),s,a.Version);if err!=nil{return err}
- // macOS launch the .app via LaunchServices; on Windows start the GUI
- // executable directly. No parent-owned pipes or cancellation.
- if runtime.GOOS=="darwin"{
-  app:=entry
-  for filepath.Ext(app)!=".app"{
-   next:=filepath.Dir(app);if next==app{return errors.New("macOS 应用包不存在")};app=next
-  }
-  return exec.Command("/usr/bin/open","-n",app).Run()
- }
- cmd:=exec.Command(entry);cmd.Dir=filepath.Dir(entry)
- if err=cmd.Start();err!=nil{return err}
- return cmd.Process.Release()
+ snap:=filepath.Join(m.appDir(s),a.Snapshot)
+ if _,err=nativeEntry(snap,s,a.Version);err!=nil{return err}
+ return m.startProtected(s,a)
 }

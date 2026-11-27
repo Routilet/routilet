@@ -34,6 +34,7 @@ function render(){
   row.append(button);
   if(running){const stop=element("button","task-cancel","取消");stop.disabled=!progress?.cancellable;stop.onclick=async()=>{try{if(await call("Cancel")){progress={...progress,stage:"正在取消",cancellable:false,cancelled:true};render()}}catch(e){status.textContent=String(e)}};row.append(stop)}
   else if(app.update){const update=element('button','update','更新');update.disabled=busy;update.onclick=()=>show('更新 '+app.name,app.installed+' → '+app.available+'\n更新不会覆盖旧安装或修改课程数据。',()=>perform(app,'update'));row.append(update)}
+  if(app.installed&&!running){const more=element('button','icon-button','⋯');more.title='管理 '+app.name;more.disabled=busy;more.onclick=()=>manage(app);row.append(more)}
   section.append(row);
  }
  refresh.disabled=busy||checking;data.disabled=busy;
@@ -46,14 +47,21 @@ async function check(){
  catch(e){if(!busy&&stamp===generation)status.textContent='无法检查更新，已安装应用仍可打开';}
  finally{checking=false;render()}
 }
+function manage(app){
+ const box=document.createElement('div');box.className='management';
+ const actions=[['修复安装','repair'],...(app.rollback?[['回退版本','rollback']]:[]),['创建桌面快捷方式','shortcut'],['卸载','uninstall']];
+ for(const [label,method] of actions){const b=element('button','management-button',label);b.onclick=()=>{dialog.close();box.remove();if(method==='shortcut'){void perform(app,method);return}show(label+' '+app.name,method==='uninstall'?'卸载应用，不删除课程数据；运行中的版本保留。':method==='rollback'?'切换到上一个已安装版本。':'重新安装当前版本。',()=>perform(app,method))};box.append(b)}
+ show(app.name,app.installed);dialog.insertBefore(box,dialog.querySelector('.actions'));dialog.addEventListener('close',()=>box.remove(),{once:true});
+}
 async function perform(app,mode){
  if(busy)return;busy=true;generation++;let timer=null;let polling=false;
- if(mode!=='launch'){task=app;progress=null;timer=setInterval(async()=>{if(polling||!task)return;polling=true;try{const p=await call('Progress');if(task&&p.active){progress=p;render()}}catch{}finally{polling=false}},250)}
+ if(['install','update','repair'].includes(mode)){task=app;progress=null;timer=setInterval(async()=>{if(polling||!task)return;polling=true;try{const p=await call('Progress');if(task&&p.active){progress=p;render()}}catch{}finally{polling=false}},250)}
  render();
  try{
-  if(mode!=='launch'){status.textContent=mode==='update'?'正在更新 '+app.name+'…':'正在安装 '+app.name+'…';await call('Install',app.id);task=null;progress=null;render()}
-  if(mode!=='update'){status.textContent='正在打开 '+app.name+'…';await call('Launch',app.id);await call('Close');return}
-  apps=await call('List');status.textContent=app.name+' 已更新';
+  if(['install','update','repair'].includes(mode)){status.textContent=mode==='update'?'正在更新 '+app.name+'…':mode==='repair'?'正在修复 '+app.name+'…':'正在安装 '+app.name+'…';await call(mode==='repair'?'Repair':'Install',app.id);task=null;progress=null;render()}
+  if(['rollback','uninstall','shortcut'].includes(mode))await call({rollback:'Rollback',uninstall:'Uninstall',shortcut:'Shortcut'}[mode],app.id);
+  if(['launch','install'].includes(mode)){status.textContent='正在打开 '+app.name+'…';await call('Launch',app.id);await call('Close');return}
+  apps=await call('List');status.textContent=app.name+({update:' 已更新',repair:' 已修复',rollback:' 已回退',uninstall:' 已卸载',shortcut:' 快捷方式已创建'}[mode]||' 操作完成');
  }catch(e){if(progress?.cancelled||String(e).includes('context canceled'))status.textContent='已取消，原有版本不受影响';else{status.textContent='操作未完成';show('操作失败',String(e))}}
  finally{if(timer!==null)clearInterval(timer);task=null;progress=null;busy=false;render()}
 }
