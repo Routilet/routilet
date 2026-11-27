@@ -40,7 +40,7 @@ type AppState struct {
  Note string `json:"note"`
 }
 type Manager struct {
- root,pnpm,bootstrap string
+ root,pnpm,bootstrap,ready string
  client *http.Client
  mu sync.Mutex
  jobMu sync.Mutex
@@ -59,8 +59,8 @@ func newManager() (*Manager,error) {
  name:="pnpm";if runtime.GOOS=="windows"{name+=".exe"}
  return &Manager{root:filepath.Join(config,"Routilet"),bootstrap:exe,pnpm:filepath.Join(filepath.Dir(exe),name),client:&http.Client{Timeout:8*time.Second}},nil
 }
-func spec(id string)(appSpec,error){for _,s:=range catalog{if s.ID==id{return s,nil}};return appSpec{},errors.New("未知应用")}
-func (m *Manager) appDir(s appSpec)string{return filepath.Join(m.root,"apps",s.ID)}
+func spec(id string)(appSpec,error){if id=="routilet"{return managerSpec,nil};for _,s:=range catalog{if s.ID==id{return s,nil}};return appSpec{},errors.New("未知应用")}
+func (m *Manager) appDir(s appSpec)string{if s.ID=="routilet"{return filepath.Join(m.root,"manager")};return filepath.Join(m.root,"apps",s.ID)}
 func validSnapshot(s string)bool{return strings.HasPrefix(s,"release-")&&filepath.Base(s)==s&&!strings.ContainsAny(s,"/\\")}
 func (m *Manager) active(s appSpec)(activation,error){
  var a activation
@@ -90,6 +90,7 @@ func (m *Manager) remoteContext(ctx context.Context,s appSpec)(string,error){
  if r.StatusCode!=200{return "",fmt.Errorf("软件源 HTTP %d",r.StatusCode)}
  var v struct{Version string}
  if err=json.NewDecoder(io.LimitReader(r.Body,4<<20)).Decode(&v);err!=nil{return "",err}
+ if s.ID=="routilet"&&!managerVersion.MatchString(v.Version){return "",errors.New("管理器版本不兼容")}
  if s.ID=="observer"&&!observerVersion.MatchString(v.Version){return "",errors.New("原生预览版尚未发布")}
  return v.Version,nil
 }
@@ -209,6 +210,7 @@ func (m *Manager) installMode(id string,repair bool)error{
  old,oldErr:=m.active(s)
  var version string
  if repair {if oldErr!=nil{return oldErr};version=old.Version}else{version,err=m.remoteContext(ctx,s);if err!=nil{return err}}
+ if s.ID=="routilet"&&!repair&&!newer(version,buildVersion){return errors.New("Routilet 已是当前版本")}
  if oldErr==nil&&old.Version!=version&&!newer(version,old.Version){return errors.New("当前版本比发行渠道更新，不自动降级")}
  job.stage("准备安装")
  if err=m.setupContext(ctx);err!=nil{return err}
@@ -218,11 +220,12 @@ func (m *Manager) installMode(id string,repair bool)error{
  job.stage("解析与下载")
  if err=m.installPackageContext(ctx,job,snap,s.Package,version);err!=nil{return err}
  job.stage("校验应用")
- if _,err=nativeEntry(snap,s,version);err!=nil{return err}
+ entry,err:=nativeEntry(snap,s,version);if err!=nil{return err}
+ if s.ID=="routilet"{if err=probeManager(ctx,entry,version);err!=nil{return err}}
  if err=job.commit();err!=nil{return err}
  if err=atomicJSON(filepath.Join(dir,"activation.json"),activation{Snapshot:filepath.Base(snap),Version:version,Previous:old.Snapshot,PreviousVersion:old.Version});err!=nil{return err}
  keep=true
- m.cleanup(s)
+ if s.ID!="routilet"{m.cleanup(s)}
  return nil
 }
 func (m *Manager) installPackage(snap,pkg,version string)error{return m.installPackageContext(context.Background(),nil,snap,pkg,version)}

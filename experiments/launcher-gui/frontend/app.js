@@ -8,7 +8,7 @@ const confirm=document.querySelector('#confirm');
 const cancel=document.querySelector('#cancel');
 const icons={companion:'<svg viewBox="0 0 24 24" fill="none"><path d="m8 6-6 6 6 6m8-12 6 6-6 6m-2-15-4 18" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"/></svg>',observer:'<svg viewBox="0 0 24 24" fill="none"><path d="M2 12h5l3-8 4 16 3-8h5" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"/></svg>'};
 let apps=[],busy=false,checking=false,action=null,task=null,progress=null,generation=0;
-const data=document.querySelector("#data");
+const data=document.querySelector("#data");const self=document.querySelector("#self");let selfInfo=null;
 function element(tag,cls,txt){const e=document.createElement(tag);if(cls)e.className=cls;if(txt)e.textContent=txt;return e}
 function show(title,text,fn=null){action=fn;document.querySelector('#message-title').textContent=title;document.querySelector('#message-text').textContent=text;cancel.hidden=!fn;confirm.textContent=fn?'继续':'确定';dialog.showModal()}
 confirm.onclick=()=>{const fn=action;action=null;dialog.close();if(fn)void fn()};
@@ -37,7 +37,7 @@ function render(){
   if(app.installed&&!running){const more=element('button','icon-button','⋯');more.title='管理 '+app.name;more.disabled=busy;more.onclick=()=>manage(app);row.append(more)}
   section.append(row);
  }
- refresh.disabled=busy||checking;data.disabled=busy;
+ refresh.disabled=busy||checking;data.disabled=busy;self.disabled=busy;self.textContent=selfInfo?.pending?"重启以更新":selfInfo?.update?"Routilet 更新":"Routilet";
 }
 async function check(){
  if(busy||checking)return;
@@ -67,4 +67,20 @@ async function perform(app,mode){
 }
 refresh.onclick=check;
 data.onclick=async()=>{try{await call('OpenData')}catch(e){show('无法打开目录',String(e))}};
-try{apps=await call('List');render();status.textContent='';void check()}catch(e){status.textContent=String(e)}
+async function checkSelf(){try{selfInfo=await call('SelfInfo');render()}catch{}}
+self.onclick=async()=>{
+ if(busy)return;
+ if(!selfInfo){status.textContent='检查 Routilet 版本…';await checkSelf();status.textContent=''}
+ if(!selfInfo)return;
+ if(selfInfo.pending){show('Routilet 更新','新版已准备就绪，关闭后重新打开 Routilet。',()=>call('Close'));return}
+ if(selfInfo.update){show('更新 Routilet',selfInfo.version+' → '+selfInfo.available+'，完成后重新打开。',updateSelf);return}
+ show('Routilet '+selfInfo.version,selfInfo.note||'暂无更新');
+};
+async function updateSelf(){
+ if(busy)return;busy=true;generation++;render();status.textContent='正在更新 Routilet…';
+ const timer=setInterval(async()=>{try{const p=await call('Progress');if(p.active)status.textContent=p.stage+(p.total>0?' '+p.added+'/'+p.total+' 个包':'')}catch{}},300);
+ try{await call('UpdateSelf');status.textContent='新版已准备就绪，重新打开以更新';await checkSelf()}
+ catch(e){status.textContent='更新未完成';show('更新失败',String(e))}
+ finally{clearInterval(timer);busy=false;render()}
+}
+try{apps=await call('List');render();await call('Ready');status.textContent='';void check();void checkSelf()}catch(e){status.textContent=String(e)}

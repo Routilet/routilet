@@ -2,15 +2,15 @@
 
 本实验以应用展示与打开为主：紧凑窗口、应用列表，点击已安装应用直接启动，未安装点击后确认安装并打开，有更新才展示按钮。启动请求成功后退出启动台；启动失败保留窗口。更新不自动打开应用。应用独立进程；没有常驻服务。
 
-Go + Wails v3.1.0，静态 Web 前端，固定 pnpm 12.22.0 随包分发；使用 npm 官方源，默认链接/导入方式，共享 store，禁用安装脚本。不使用 Node、镜像、自更新或 pnpm 版本管理。首次下载包含 pnpm。
+Go + Wails v3.1.0，静态 Web 前端，固定 pnpm 12.22.0 随包分发；使用 npm 官方源，默认链接/导入方式，共享 store，禁用安装脚本。不使用 Node、镜像或 pnpm 版本管理。首次下载包含 pnpm。
 
 ## 使用与边界
 
 - 从实验分支 CI 下载对应平台归档并完整解压，运行 Routilet.exe / Routilet.app。macOS ad-hoc 签名、未公证；可信来源按系统单应用授权。Windows 使用系统 WebView2。
 - Companion 目前只展示“新版开发中”，不安装旧 TS/TUI。OJ 插件及 Exam Kit 不在首页；不做插件协议。
 - Observer 接入现有 @routilet/c-observer 的 next 渠道（GUI 预发行，至少 0.2.0 系列），不降级到旧 latest TUI。若尚未发行、网络失败或清单不匹配，提示具体原因。读取现有 manifest.json 的平台入口与 SHA-256；不要求修改 Observer。
-- 安装数据隔离于 OS UserConfigDir/Routilet（macOS ~/Library/Application Support/Routilet；Windows %APPDATA%\\Routilet），当前版本通过每应用 activation.json 记录；更新新建快照、校验后激活。不接管已有 Launcher、账号或课程。旧快照全部保留，因此本阶段不做删除/租约；预览只承诺单启动台实例顺序操作，不承诺崩溃原子性。应用自身仍可能读取其正常用户配置。
-- 首页先读本地状态，再后台查版本；断网仍可打开已安装的应用。不检查 pnpm 新版本、不提供管理器自更新。没有独立设置页、商店、卸载、快捷方式、回退界面；这些不是初版目标。
+- 安装数据隔离于 OS UserConfigDir/Routilet（macOS ~/Library/Application Support/Routilet；Windows %APPDATA%\\Routilet），当前版本通过每应用 activation.json 记录；更新新建快照、校验后激活。不接管已有 Launcher、账号或课程。保留当前、上一版以及有运行标记的快照；跨进程文件锁串行化操作。应用监督进程退出后清除标记，异常终止时保留标记，避免误删。未验证应用自身派生并脱离的子进程。应用自身仍可能读取其正常用户配置。
+- 首页先读本地状态，再后台查版本；断网仍可打开已安装的应用。不检查 pnpm 新版本。应用更多菜单提供修复、卸载、回退、快捷方式（Windows .lnk / macOS .command，原始入口移动后需重建）。Routilet 底部入口检查自身最新版本；固定 pnpm 将新 Manager 安装至独立快照，校验协议，下一次打开由原入口启动，前端 Ready 超时或提前退出则回退。当前保留全部 Manager 快照，不清理可能运行中的版本。
 - CI 测试 Go 单测、真实 esbuild 原生包安装；若 Observer next 已发布，再验证其实际包清单和哈希。CI 不启动 GUI，不等于真机验收；macOS open 成功代表系统接收启动请求，并非应用已完成初始化。Windows 同理仅确认进程创建。若真机发现启动异常，再完善握手机制。
 
 旧 Routilet Preview 目录保留原状，不自动迁移或删除；可在关闭所有相关应用后手动清理。首页底部“数据目录”打开新目录。安装及更新使用 pnpm 实际进度输出，未知总量显示不定进度；取消在激活前有效，关闭窗口/退出在任务进行时阻止，请先取消或等待完成。取消后清除候选目录，旧版本不变；操作系统强制终止不保证清除残留候选。
@@ -25,3 +25,7 @@ Go + Wails v3.1.0，静态 Web 前端，固定 pnpm 12.22.0 随包分发；使�
 6. 检查 Windows/macOS 权限、执行方式、中文路径及程序退出。没有真实新版 Observer 时，第 3–4 项暂不可验收。
 
 不合并原阶段 01，不修改正式 Launcher、包名、产品版本或组织决策，不发布任何正式版本。
+
+## 自更新发行协议
+
+固定初始入口兼作备用 GUI。@routilet/routilet latest 包包含双平台预构建 Manager（manifest schema 1）；不包含 pnpm，使用初始入口同目录的固定 pnpm。`scripts/package-manager.py` 从已构建原生资产生成 npm tarball，不发布。macOS 候选 APP 需在打包前单独签名。CI 使用本地 0.1.1 测试 tarball，验证实际 pnpm 安装、清单和协议、激活记录及损坏后回退；真实 GUI Ready 及首次发行后的线上升级尚待真机。首次发行前需独立生成双平台包、确认许可证与签名、核实 npm 权限及实际发布流程。

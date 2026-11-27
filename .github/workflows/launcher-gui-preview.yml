@@ -91,6 +91,26 @@ jobs:
             tar -czf out/routilet-gui-darwin-arm64.tar.gz -C out/package .
           fi
           ls -lh out/routilet-gui-*
+      - name: Test native manager self-update from local npm tarball
+        shell: bash
+        env:
+          TARGET: ${{ matrix.target }}
+        run: |
+          set -euo pipefail
+          if [[ "$TARGET" == win32-x64 ]]; then
+            CGO_ENABLED=0 go build -tags production -trimpath -ldflags="-X main.buildVersion=0.1.1" -o out/candidate.exe .
+            python scripts/package-manager.py --version 0.1.1 --windows out/candidate.exe --out out/manager-fixture.tgz
+            CGO_ENABLED=0 go build -tags production -o out/package/self-update-test.exe .
+            out/package/self-update-test.exe --self-update-test out/manager-fixture.tgz 0.1.1
+          else
+            candidate=out/candidate/Routilet.app
+            mkdir -p "$candidate/Contents/MacOS"
+            cp Info.plist "$candidate/Contents/Info.plist"
+            CGO_ENABLED=1 MACOSX_DEPLOYMENT_TARGET=12.0 go build -tags production -trimpath -ldflags="-X main.buildVersion=0.1.1" -o "$candidate/Contents/MacOS/Routilet" .
+            codesign --force --sign - "$candidate"
+            python3 scripts/package-manager.py --version 0.1.1 --macos "$candidate" --out out/manager-fixture.tgz
+            out/package/Routilet.app/Contents/MacOS/Routilet --self-update-test out/manager-fixture.tgz 0.1.1
+          fi
       - uses: actions/upload-artifact@v4
         with:
           name: routilet-gui-${{ matrix.target }}

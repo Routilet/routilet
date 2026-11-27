@@ -3,3 +3,5 @@
 .progress{height:5px;width:100%;accent-color:var(--accent);border:0;overflow:hidden;border-radius:4px}.progress::-webkit-progress-bar{background:var(--line);border-radius:4px}.progress::-webkit-progress-value{background:var(--accent);border-radius:4px}.task-cancel{font-size:12px;padding:7px 8px;color:var(--muted);white-space:nowrap}.data-button{font-size:11px;color:var(--muted);white-space:nowrap;padding:4px 5px}.app.running .launch:disabled{opacity:1}.detail{font-size:11px;color:var(--muted)}
 
 .management{display:flex;flex-direction:column;gap:4px;margin:8px 0 16px}.management-button{text-align:left;padding:9px;border:1px solid var(--line)}
+
+.footer-actions{display:flex;gap:5px;align-items:center}
