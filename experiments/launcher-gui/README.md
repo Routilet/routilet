@@ -9,9 +9,11 @@ Go + Wails v3.1.0，静态 Web 前端，固定 pnpm 12.22.0 随包分发；使�
 - 从实验分支 CI 下载对应平台归档并完整解压，运行 Routilet.exe / Routilet.app。macOS ad-hoc 签名、未公证；可信来源按系统单应用授权。Windows 使用系统 WebView2。
 - Companion 目前只展示“新版开发中”，不安装旧 TS/TUI。OJ 插件及 Exam Kit 不在首页；不做插件协议。
 - Observer 接入现有 @routilet/c-observer 的 next 渠道（GUI 预发行，至少 0.2.0 系列），不降级到旧 latest TUI。若尚未发行、网络失败或清单不匹配，提示具体原因。读取现有 manifest.json 的平台入口与 SHA-256；不要求修改 Observer。
-- 安装数据隔离于 OS UserConfigDir/Routilet Preview，当前版本通过每应用 activation.json 记录；更新新建快照、校验后激活。不接管已有 Launcher、账号或课程。旧快照全部保留，因此本阶段不做删除/租约；预览只承诺单启动台实例顺序操作，不承诺崩溃原子性。应用自身仍可能读取其正常用户配置。
+- 安装数据隔离于 OS UserConfigDir/Routilet（macOS ~/Library/Application Support/Routilet；Windows %APPDATA%\\Routilet），当前版本通过每应用 activation.json 记录；更新新建快照、校验后激活。不接管已有 Launcher、账号或课程。旧快照全部保留，因此本阶段不做删除/租约；预览只承诺单启动台实例顺序操作，不承诺崩溃原子性。应用自身仍可能读取其正常用户配置。
 - 首页先读本地状态，再后台查版本；断网仍可打开已安装的应用。不检查 pnpm 新版本、不提供管理器自更新。没有独立设置页、商店、卸载、快捷方式、回退界面；这些不是初版目标。
 - CI 测试 Go 单测、真实 esbuild 原生包安装；若 Observer next 已发布，再验证其实际包清单和哈希。CI 不启动 GUI，不等于真机验收；macOS open 成功代表系统接收启动请求，并非应用已完成初始化。Windows 同理仅确认进程创建。若真机发现启动异常，再完善握手机制。
+
+旧 Routilet Preview 目录保留原状，不自动迁移或删除；可在关闭所有相关应用后手动清理。首页底部“数据目录”打开新目录。安装及更新使用 pnpm 实际进度输出，未知总量显示不定进度；取消在激活前有效，关闭窗口/退出在任务进行时阻止，请先取消或等待完成。取消后清除候选目录，旧版本不变；操作系统强制终止不保证清除残留候选。
 
 ## 真机验收
 
@@ -19,6 +21,7 @@ Go + Wails v3.1.0，静态 Web 前端，固定 pnpm 12.22.0 随包分发；使�
 2. 点击 Companion 应提示新版开发中；若 Observer 未发布，点击应有明确提示。
 3. Observer next 可用时安装并启动，确认 Routilet 退出、Observer 独立运行；再次打开 Routilet 直接启动。
 4. 有新版时确认更新按钮出现；更新成功留在启动台，旧安装保留；断网仍可打开旧版。
-5. 检查 Windows/macOS 权限、执行方式、中文路径及程序退出。没有真实新版 Observer 时，第 3–4 项暂不可验收。
+5. 安装时检查真实进度、取消、关闭窗口阻止、旧版本保留及数据目录入口。
+6. 检查 Windows/macOS 权限、执行方式、中文路径及程序退出。没有真实新版 Observer 时，第 3–4 项暂不可验收。
 
 不合并原阶段 01，不修改正式 Launcher、包名、产品版本或组织决策，不发布任何正式版本。

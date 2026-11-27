@@ -2,6 +2,7 @@ package main
 
 import (
  "context"
+ "bytes"
  "crypto/sha256"
  "encoding/hex"
  "encoding/json"
@@ -41,6 +42,8 @@ type Manager struct {
  root,pnpm string
  client *http.Client
  mu sync.Mutex
+ jobMu sync.Mutex
+ job *installJob
 }
 type activation struct { Snapshot, Version string }
 type nativeManifest struct {
@@ -53,7 +56,7 @@ func newManager() (*Manager,error) {
  exe,err:=os.Executable();if err!=nil{return nil,err}
  config,err:=os.UserConfigDir();if err!=nil{return nil,err}
  name:="pnpm";if runtime.GOOS=="windows"{name+=".exe"}
- return &Manager{root:filepath.Join(config,"Routilet Preview"),pnpm:filepath.Join(filepath.Dir(exe),name),client:&http.Client{Timeout:8*time.Second}},nil
+ return &Manager{root:filepath.Join(config,"Routilet"),pnpm:filepath.Join(filepath.Dir(exe),name),client:&http.Client{Timeout:8*time.Second}},nil
 }
 func spec(id string)(appSpec,error){for _,s:=range catalog{if s.ID==id{return s,nil}};return appSpec{},errors.New("未知应用")}
 func (m *Manager) appDir(s appSpec)string{return filepath.Join(m.root,"apps",s.ID)}
@@ -74,11 +77,12 @@ func atomicJSON(path string,a activation)error{
 }
 var observerVersion=regexp.MustCompile(`^0\.(?:[2-9]|[1-9][0-9]+)\.[0-9]+(?:-[0-9A-Za-z.-]+)?$|^[1-9][0-9]*\.[0-9]+\.[0-9]+(?:-[0-9A-Za-z.-]+)?$`)
 
-func (m *Manager) remote(s appSpec)(string,error){
+func (m *Manager) remote(s appSpec)(string,error){return m.remoteContext(context.Background(),s)}
+func (m *Manager) remoteContext(ctx context.Context,s appSpec)(string,error){
  if s.Package==""{return "",errors.New("新版开发中")}
  // Request only the explicit channel; do not silently fall back to legacy TUI.
  addr:=registry+url.PathEscape(s.Package)+"/"+url.PathEscape(s.Channel)
- req,err:=http.NewRequest(http.MethodGet,addr,nil);if err!=nil{return "",err}
+ req,err:=http.NewRequestWithContext(ctx,http.MethodGet,addr,nil);if err!=nil{return "",err}
  req.Header.Set("Accept","application/json")
  r,err:=m.client.Do(req);if err!=nil{return "",err};defer r.Body.Close()
  if r.StatusCode==http.StatusNotFound{return "",errors.New("原生预览版尚未发布")}
@@ -165,7 +169,10 @@ func nativeEntry(snapshot string,s appSpec,version string)(string,error){
  return entry,nil
 }
 func (m *Manager) pnpmCommand(dir string,args ...string)(string,error){
- ctx,cancel:=context.WithTimeout(context.Background(),5*time.Minute);defer cancel()
+ return m.pnpmContext(context.Background(),nil,dir,args...)
+}
+func (m *Manager) pnpmContext(parent context.Context,job *installJob,dir string,args ...string)(string,error){
+ ctx,cancel:=context.WithTimeout(parent,5*time.Minute);defer cancel()
  cmd:=exec.CommandContext(ctx,m.pnpm,args...);cmd.Dir=dir;hideChild(cmd)
  for _,kv:=range os.Environ(){
   k:=strings.ToLower(strings.SplitN(kv,"=",2)[0])
@@ -173,38 +180,51 @@ func (m *Manager) pnpmCommand(dir string,args ...string)(string,error){
   cmd.Env=append(cmd.Env,kv)
  }
  cmd.Env=append(cmd.Env,"PNPM_HOME="+filepath.Join(m.root,"pnpm-home"),"NPM_CONFIG_USERCONFIG="+filepath.Join(m.root,"user.npmrc"),"NPM_CONFIG_GLOBALCONFIG="+filepath.Join(m.root,"global.npmrc"),"NPM_CONFIG_UPDATE_NOTIFIER=false")
- out,err:=cmd.CombinedOutput()
- if err!=nil{return string(out),fmt.Errorf("pnpm: %w\n%s",err,out)}
- return strings.TrimSpace(string(out)),nil
+ var output bytes.Buffer
+ w:=&progressWriter{output:&output,job:job}
+ cmd.Stdout=w;cmd.Stderr=w
+ err:=cmd.Run();w.finish()
+ if parent.Err()!=nil{return "",parent.Err()}
+ if err!=nil{return output.String(),fmt.Errorf("pnpm: %w\n%s",err,output.String())}
+ return strings.TrimSpace(output.String()),nil
 }
-func (m *Manager) setup()error{
+func (m *Manager) setup()error{return m.setupContext(context.Background())}
+func (m *Manager) setupContext(ctx context.Context)error{
  if err:=os.MkdirAll(m.root,0700);err!=nil{return err}
  for _,n:=range []string{"user.npmrc","global.npmrc"}{if err:=os.WriteFile(filepath.Join(m.root,n),nil,0600);err!=nil{return err}}
- v,err:=m.pnpmCommand(m.root,"--version");if err!=nil{return err}
+ v,err:=m.pnpmContext(ctx,nil,m.root,"--version");if err!=nil{return err}
  if v!=pnpmVersion{return fmt.Errorf("需要随附的 pnpm %s，实际 %s",pnpmVersion,v)}
  return nil
 }
 func (m *Manager) install(id string)error{
- m.mu.Lock();defer m.mu.Unlock()
  s,err:=spec(id);if err!=nil{return err}
  if s.Package==""{return errors.New("新版尚未发布")}
- version,err:=m.remote(s);if err!=nil{return err}
+ job,err:=m.beginJob(id);if err!=nil{return err}
+ defer m.endJob(job)
+ m.mu.Lock();defer m.mu.Unlock()
+ ctx:=job.ctx
+ version,err:=m.remoteContext(ctx,s);if err!=nil{return err}
  if old,e:=m.active(s);e==nil&&old.Version!=version&&!newer(version,old.Version){return errors.New("当前版本比发行渠道更新，不自动降级")}
- if err=m.setup();err!=nil{return err}
+ job.stage("准备安装")
+ if err=m.setupContext(ctx);err!=nil{return err}
  dir:=m.appDir(s);if err=os.MkdirAll(dir,0700);err!=nil{return err}
  snap,err:=os.MkdirTemp(dir,"release-");if err!=nil{return err}
  keep:=false;defer func(){if !keep{_ = os.RemoveAll(snap)}}()
- if err=m.installPackage(snap,s.Package,version);err!=nil{return err}
+ job.stage("解析与下载")
+ if err=m.installPackageContext(ctx,job,snap,s.Package,version);err!=nil{return err}
+ job.stage("校验应用")
  if _,err=nativeEntry(snap,s,version);err!=nil{return err}
+ if err=job.commit();err!=nil{return err}
  if err=atomicJSON(filepath.Join(dir,"activation.json"),activation{filepath.Base(snap),version});err!=nil{return err}
  keep=true
  return nil
 }
-func (m *Manager) installPackage(snap,pkg,version string)error{
+func (m *Manager) installPackage(snap,pkg,version string)error{return m.installPackageContext(context.Background(),nil,snap,pkg,version)}
+func (m *Manager) installPackageContext(ctx context.Context,job *installJob,snap,pkg,version string)error{
  b,err:=json.Marshal(map[string]any{"name":"routilet-preview-install","private":true,"dependencies":map[string]string{pkg:version}})
  if err!=nil{return err}
  if err=os.WriteFile(filepath.Join(snap,"package.json"),b,0600);err!=nil{return err}
- _,err=m.pnpmCommand(snap,"install","--prod","--ignore-scripts","--no-frozen-lockfile","--registry="+registry,"--store-dir="+filepath.Join(m.root,"store"),"--reporter=append-only")
+ _,err=m.pnpmContext(ctx,job,snap,"install","--prod","--ignore-scripts","--no-frozen-lockfile","--registry="+registry,"--store-dir="+filepath.Join(m.root,"store"),"--reporter=append-only")
  return err
 }
 func (m *Manager) launch(id string)error{
