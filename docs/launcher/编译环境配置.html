@@ -1,0 +1,76 @@
+<!doctype html>
+<html lang="zh-CN">
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Accoding Companion 编译环境配置</title>
+<style>
+  :root { color-scheme: light dark; --paper: #fcfaf6; --ink: #27251f; --accent: #246450; --line: #d4dcd4; --panel: #edf3ee; }
+  @media (prefers-color-scheme: dark) { :root { --paper: #18211e; --ink: #efeee5; --accent: #9ed8b2; --line: #445b53; --panel: #25332e; } }
+  * { box-sizing: border-box; }
+  body { margin: 0; background: var(--paper); color: var(--ink); font: 17px/1.7 system-ui, sans-serif; }
+  main { max-width: 820px; margin: auto; padding: 2.5rem 1.35rem; }
+  header { border-top: 4px solid var(--accent); padding-top: 1rem; }
+  h1 { font-size: clamp(1.8rem, 6vw, 2.7rem); line-height: 1.2; margin: .2rem 0 1rem; }
+  h2 { margin-top: 2rem; border-bottom: 1px solid var(--line); padding-bottom: .3rem; }
+  h3 { margin-top: 1.5rem; margin-bottom: .35rem; }
+  a { color: var(--accent); }
+  nav { display: flex; flex-wrap: wrap; gap: .5rem 1.1rem; padding: .65rem 0; border-block: 1px solid var(--line); }
+  code { background: var(--panel); border-radius: .2rem; padding: .12em .35em; overflow-wrap: anywhere; }
+  pre { white-space: pre-wrap; overflow-wrap: anywhere; padding: 1rem; border-radius: .45rem; background: #1b2623; color: #edf5ef; font: .9rem/1.55 ui-monospace, monospace; }
+  li + li { margin-top: .45rem; }
+  .tip { border-inline-start: 3px solid var(--accent); padding-inline-start: .8rem; }
+</style>
+<main>
+<header>
+  <h1>配置 C/C++ 编译环境</h1>
+  <p>Companion 需要调用电脑上已有的编译器来运行样例和提交前检查。它不会安装编译器或修改系统环境变量。请选择适合自己的方法；无需把每一种方法都做一遍。</p>
+</header>
+<nav aria-label="目录"><a href="#windows">Windows</a><a href="#path">配置 PATH</a><a href="#mac">macOS</a><a href="#linux">Linux</a><a href="#verify">验证与排查</a></nav>
+<section id="windows">
+  <h2>Windows</h2>
+  <p>已有可用的 GCC/G++ 时，不必重新安装。若编译环境不完整或不熟悉配置，可使用课程单独提供的离线编译环境 ZIP，完整解压并按照包内说明执行安装脚本。安装包不包含在 Companion 内，由课程另行分发。</p>
+  <p>使用 C Observer 还需要同一工具链中具有内置 Python 支持的 GDB（本轮 Windows x64）。仅能运行 GCC 不代表可以使用观察器。</p>
+  <p class="tip">配置完成后关闭并重新打开启动器。没有提供固定下载链接，也不由软件自动下载或配置编译环境。</p>
+</section>
+<section id="path">
+  <h2>如何配置 Windows PATH 环境变量？</h2>
+  <p>PATH 告诉 Windows 去哪些文件夹寻找命令行程序。如果已有工具链但终端找不到它，可以手动添加对应 bin 目录。</p>
+  <ol>
+    <li>在 Windows 开始菜单搜索「编辑账户的环境变量」并打开。</li>
+    <li>在上方的「用户变量」区域找到 <code>Path</code>，选中并点击「编辑」。如果不存在，点击「新建」，变量名填 Path，变量值填编译器的 bin 目录。</li>
+    <li>在编辑窗口中点击「新建」，填写包含 gcc.exe、g++.exe 和（若使用观察器）gdb.exe 的文件夹的完整路径，例如 <code>C:\工具链\mingw64\bin</code>。</li>
+    <li>逐层点击「确定」，保存设置。</li>
+    <li>关闭并重新打开 PowerShell、Companion 以及启动器，让新设置生效。</li>
+  </ol>
+  <p class="tip">不要删除或覆盖 Path 中已有的其他条目；添加的是文件夹，不是 gcc.exe 文件本身。如果有多个 GCC 版本，可以通过 <code>where.exe gcc</code> 检查实际调用的路径。</p>
+</section>
+<section id="mac">
+  <h2>macOS</h2>
+  <p>打开终端，安装 Apple 命令行开发工具，按弹窗提示完成安装：</p>
+  <pre>xcode-select --install</pre>
+  <p>Companion 默认使用 cc 和 c++（通常为 Apple Clang），不需要额外安装 GCC。使用 Observer 还需可用的 LLDB DAP（可通过 xcrun 查找）。</p>
+</section>
+<section id="linux">
+  <h2>Linux</h2>
+  <p>Ubuntu / Debian 用户可执行：</p>
+  <pre>sudo apt update
+sudo apt install build-essential gdb</pre>
+  <p>其他发行版请使用相应的包管理器安装 GCC 和 G++。</p>
+</section>
+<section id="verify">
+  <h2>验证与排查</h2>
+  <p>重新打开 PowerShell（Windows），执行：</p>
+  <pre>gcc --version
+g++ --version
+gdb --version</pre>
+  <p>观察器还会在运行时检查 GDB 的实际能力；缺少 GDB 不影响普通本地评测。</p>
+  <p>macOS / Linux 用户执行：</p>
+  <pre>cc --version
+c++ --version</pre>
+  <p>能够显示版本说明终端可以找到编译器。只学习 C 语言时，C 编译器可用即可。回到 Companion，重新运行样例以验证实际编译、链接和运行。</p>
+  <h3>不想修改 PATH？</h3>
+  <p>在 Companion「设置 → 设置 C / C++ 编译器」中分别填写编译器可执行文件的完整路径（例如 <code>C:\工具链\mingw64\bin\gcc.exe</code>），输入 <code>auto</code> 恢复系统默认。</p>
+  <p class="tip">如果是源码语法错误、链接错误或样例答案错误，应查看对应的报错，而不是直接重新安装 GCC。</p>
+</section>
+</main>
+</html>
