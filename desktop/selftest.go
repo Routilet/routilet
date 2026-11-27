@@ -2,6 +2,7 @@ package main
 
 import (
  "fmt"
+ "errors"
  "os"
  "os/exec"
  "path/filepath"
@@ -21,11 +22,31 @@ func selfTest()error{
  out,err:=exec.Command(path,"--version").CombinedOutput();if err!=nil{return fmt.Errorf("native smoke: %w %s",err,out)}
  if strings.TrimSpace(string(out))!="0.25.12"{return fmt.Errorf("wrong native version: %s",out)}
  fmt.Println("PASS: bundled pnpm and native npm installation")
+ // Companion uses the new package, never legacy Accoding. Validate both
+ // release channels, skipping only confirmed absent/incompatible releases.
+ companion,_:=spec("companion")
+ var lastCompanion string
+ for _,channel:=range []string{stableChannel,testChannel}{
+  if err=m.setChannel(channel);err!=nil{return err}
+  cv,e:=m.remote(companion)
+  if errors.Is(e,errNoRelease){fmt.Println("Companion "+channel+" availability:",e);continue}
+  if e!=nil{return fmt.Errorf("Companion %s registry: %w",channel,e)}
+  if cv!=lastCompanion{
+   if e=m.installExpected(companion.ID,false,cv);e!=nil{return fmt.Errorf("Companion %s: %w",cv,e)}
+   lastCompanion=cv
+  }
+  fmt.Println("PASS: Companion "+channel+" native manifest and hash",cv)
+ }
+ if err=m.setChannel(stableChannel);err!=nil{return err}
  // Observer may not be published yet. Only report the actual result.
  observer,_:=spec("observer")
  v,err:=m.remote(observer)
  if err!=nil{fmt.Println("Observer availability:",err);return nil}
  if err=m.install("observer");err!=nil{return fmt.Errorf("Observer %s: %w",v,err)}
  fmt.Println("PASS: Observer native manifest and hash",v)
+ var caps strings.Builder
+ if err=m.callApp(appCall{id:"observer",query:true,args:[]string{"--capabilities"}},&caps,os.Stderr);err!=nil{return err}
+ if !strings.Contains(caps.String(),"sessionSchemaVersions"){return fmt.Errorf("Observer capability response invalid: %s",caps.String())}
+ fmt.Println("PASS: actual Observer protected capability query",caps.String())
  return nil
 }

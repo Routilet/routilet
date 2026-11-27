@@ -13,3 +13,6 @@ GitHub Release 提供初始归档，npm 官方 Registry 提供后续独立应用
 
 ## 后续
 先接入 Observer，再接入 Companion，基于实际需求归纳公共 manifest 和可选应用间调用接口；Exam Kit 资源与 OJ 插件不作为首页应用。未确定的协作协议不提前固化。旧 TUI、Node 管理方案保存在归档分支，不参与新构建。
+
+## 本地应用调用
+见 [应用调用协议 v1](app-calls.md)。复用激活记录、原生清单和运行标记，新增无界面参数透传与有界能力查询；不承载业务协议。Companion 使用新包 `@routilet/companion`，不安装旧 Accoding 包。

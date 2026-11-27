@@ -26,7 +26,7 @@ const pnpmVersion = "12.22.0"
 
 type appSpec struct { ID, Name, Description, Package, Channel string }
 var catalog=[]appSpec{
- {"companion","Companion","代码管理与本地评测","",""},
+ {"companion","Companion","代码管理与本地评测","@routilet/companion","latest"},
  {"observer","Observer","程序运行观察","@routilet/c-observer","latest"},
 }
 type AppState struct {

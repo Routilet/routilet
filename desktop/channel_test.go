@@ -19,6 +19,9 @@ func TestChannelSelection(t *testing.T){
  observer,_:=spec("observer")
  if v:=chooseRelease(observer,"stable","0.1.2","0.2.0-beta.1");v!=""{t.Fatal("legacy TUI selected",v)}
  if v:=chooseRelease(observer,"test","0.1.2","0.2.0-beta.1");v!="0.2.0-beta.1"{t.Fatal(v)}
+ companion,_:=spec("companion");if companion.Package!="@routilet/companion"{t.Fatal(companion)}
+ if v:=chooseRelease(companion,"stable","0.0.0","");v!=""{t.Fatal("placeholder selected",v)}
+ if v:=chooseRelease(companion,"test","0.0.0","0.1.0-beta.1");v!="0.1.0-beta.1"{t.Fatal(v)}
 }
 func TestChannelPersistence(t *testing.T){
  m:=&Manager{root:t.TempDir()}

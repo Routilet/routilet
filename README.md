@@ -7,7 +7,7 @@ Routilet 源于 routine：减少重复性工作，使人专注于真正值得思
 - [下载](https://github.com/Routilet/routilet/releases) · [npm](https://www.npmjs.com/package/@routilet/routilet)
 - Windows 11 x64 / Apple Silicon macOS（12+），系统 WebView，无需用户安装 Node.js 或配置 PATH。
 - 固定原生 pnpm 12.22.0；官方 npm 仓库、版本化快照、回退及离线启动。
-- Companion、Observer 新版仍在开发；真实应用接入需各自发行兼容版本。
+- Observer 与 Companion 使用独立原生 npm 包（`@routilet/c-observer`、`@routilet/companion`），当前通道无兼容版本时不可安装。
 
 完整解压后运行 Routilet.exe / Routilet.app。首次入口及随附 pnpm 不要拆开。macOS ad-hoc 签名、未公证；Windows 使用系统 WebView2。底部“数据目录”打开安装数据；不自动迁移课程或旧启动台数据。
 
