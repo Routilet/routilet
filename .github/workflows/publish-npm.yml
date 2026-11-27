@@ -86,6 +86,10 @@ jobs:
           git diff --exit-code -- go.mod go.sum
           go test -mod=readonly ./...
           go vet -mod=readonly ./...
+          node --test tests/interaction.test.mjs
+          node --check frontend/app.js
+          node --check frontend/dialogs.js
+          node --check frontend/menu.js
       - name: Generate native icons from vector source
         shell: bash
         env:
