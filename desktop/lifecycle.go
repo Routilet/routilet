@@ -71,12 +71,6 @@ func (m *Manager) clean()(CleanupReport,error){
  for _,s:=range catalog{r:=m.cleanup(s);report.Removed+=r.Removed;report.Protected+=r.Protected;report.Failed=append(report.Failed,r.Failed...)}
  return report,nil
 }
-func (m *Manager) startProtected(s appSpec,a activation)error{
- snap:=filepath.Join(m.appDir(s),a.Snapshot)
- runs:=filepath.Join(snap,".runs");if err:=os.MkdirAll(runs,0700);err!=nil{return err}
- marker,err:=os.MkdirTemp(runs,"run-");if err!=nil{return err}
- return m.spawnSupervisor(s,a,marker,nil)
-}
 func (m *Manager) supervise(id,snapshot,version,run string,args ...string)error{
  if !validSnapshot(snapshot)||!strings.HasPrefix(run,"run-")||filepath.Base(run)!=run{return errors.New("无效运行标记")}
  s,err:=spec(id);if err!=nil{return err}

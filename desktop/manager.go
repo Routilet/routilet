@@ -264,14 +264,14 @@ func (m *Manager) installPackageContext(ctx context.Context,job *installJob,snap
  return err
 }
 func (m *Manager) launch(id string)error{
+ return m.launchWith(id,m.spawnSupervisor)
+}
+// Pin the verified snapshot under the operation lock, then release it before
+// starting/waiting for the supervisor. A child may read managed resources at startup.
+func (m *Manager) launchWith(id string,spawn func(appSpec,activation,string,[]string)error)error{
  if id=="routilet"{return errors.New("使用原始入口打开 Routilet")}
- m.mu.Lock();defer m.mu.Unlock()
- release,err:=m.operationLock();if err!=nil{return err};defer release()
  s,err:=spec(id);if err!=nil{return err}
  if s.component(){return errors.New("组件由 Companion 调用，不能直接打开")}
- if err=m.requireEnabled(s);err!=nil{return err}
- a,err:=m.active(s);if err!=nil{return err}
- snap:=filepath.Join(m.appDir(s),a.Snapshot)
- if _,err=nativeEntry(snap,s,a.Version);err!=nil{return err}
- return m.startProtected(s,a)
+ s,a,_,marker,err:=m.pinApp(appCall{id:id});if err!=nil{return err}
+ return spawn(s,a,marker,nil)
 }
