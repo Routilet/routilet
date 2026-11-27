@@ -12,6 +12,7 @@ import (
 
 const stableChannel="stable"
 const testChannel="test"
+var errNoRelease=errors.New("当前通道暂无兼容的原生版本")
 type channelSettings struct{ Channel string `json:"channel"` }
 func(m *Manager)channel()(string,error){
  b,err:=os.ReadFile(filepath.Join(m.root,"release-channel.json"))
@@ -39,6 +40,7 @@ func validRelease(v string)bool{
 func compatibleRelease(s appSpec,v string)bool{
  if v==""||!validRelease(v){return false}
  if s.ID=="observer"{core,_,_:=strings.Cut(v,"+");return observerVersion.MatchString(core)}
+ if s.ID=="companion"{core,_,_:=strings.Cut(v,"+");if core=="0.0.0"{return false}}
  return true
 }
 func chooseRelease(s appSpec,channel,stable,next string)string{
@@ -55,6 +57,6 @@ func(m *Manager)resolveRelease(ctx context.Context,s appSpec,channel string)(str
   next,err=m.fetchTag(ctx,s,"next");if err!=nil{return "",err}
  }
  v:=chooseRelease(s,channel,stable,next)
- if v==""{return "",errors.New("当前通道暂无兼容的原生版本")}
+ if v==""{return "",errNoRelease}
  return v,nil
 }

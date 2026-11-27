@@ -2,6 +2,7 @@ package main
 
 import (
  "fmt"
+ "errors"
  "os"
  "os/exec"
  "path/filepath"
@@ -21,6 +22,13 @@ func selfTest()error{
  out,err:=exec.Command(path,"--version").CombinedOutput();if err!=nil{return fmt.Errorf("native smoke: %w %s",err,out)}
  if strings.TrimSpace(string(out))!="0.25.12"{return fmt.Errorf("wrong native version: %s",out)}
  fmt.Println("PASS: bundled pnpm and native npm installation")
+ // Companion uses the new package, never legacy Accoding.
+ companion,_:=spec("companion")
+ cv,err:=m.remote(companion)
+ if errors.Is(err,errNoRelease){fmt.Println("Companion availability:",err)}else if err!=nil{return fmt.Errorf("Companion registry: %w",err)}else{
+  if err=m.installExpected(companion.ID,false,cv);err!=nil{return fmt.Errorf("Companion %s: %w",cv,err)}
+  fmt.Println("PASS: Companion native manifest and hash",cv)
+ }
  // Observer may not be published yet. Only report the actual result.
  observer,_:=spec("observer")
  v,err:=m.remote(observer)

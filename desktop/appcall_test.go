@@ -85,7 +85,7 @@ func TestWaitProtectsSnapshot(t *testing.T){
  if e:=os.WriteFile(session+".finish",nil,0600);e!=nil{t.Fatal(e)}
  select{case e:=<-done:if e!=nil{t.Fatal(e)};case <-time.After(5*time.Second):t.Fatal("wait did not return")}
  runs,e:=os.ReadDir(filepath.Join(snap,".runs"));if e!=nil||len(runs)!=0{t.Fatal(runs,e)}
- if e=m.clean();e!=nil{t.Fatal(e)}
+ if report,e:=m.clean();e!=nil||len(report.Failed)!=0{t.Fatal(report,e)}
  if _,e=os.Stat(snap);!os.IsNotExist(e){t.Fatal("unused snapshot not cleaned",e)}
 }
 func TestQueryOutputBound(t *testing.T){
