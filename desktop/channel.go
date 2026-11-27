@@ -40,7 +40,7 @@ func validRelease(v string)bool{
 func compatibleRelease(s appSpec,v string)bool{
  if v==""||!validRelease(v){return false}
  if s.ID=="observer"{core,_,_:=strings.Cut(v,"+");return observerVersion.MatchString(core)}
- if s.ID=="companion"{core,_,_:=strings.Cut(v,"+");if core=="0.0.0"{return false}}
+ if s.ID=="companion"||s.component(){core,_,_:=strings.Cut(v,"+");if core=="0.0.0"{return false}}
  return true
 }
 func chooseRelease(s appSpec,channel,stable,next string)string{

@@ -80,6 +80,7 @@ func (m *Manager) startProtected(s appSpec,a activation)error{
 func (m *Manager) supervise(id,snapshot,version,run string,args ...string)error{
  if !validSnapshot(snapshot)||!strings.HasPrefix(run,"run-")||filepath.Base(run)!=run{return errors.New("无效运行标记")}
  s,err:=spec(id);if err!=nil{return err}
+ if s.component(){return errors.New("组件不能通过 GUI 监督入口启动")}
  snap:=filepath.Join(m.appDir(s),snapshot);marker:=filepath.Join(snap,".runs",run)
  if st,e:=os.Stat(marker);e!=nil||!st.IsDir(){return errors.New("缺少运行标记")}
  fail:=func(e error)error{_ = os.WriteFile(filepath.Join(marker,"error"),[]byte(e.Error()),0600);return e}
@@ -101,6 +102,7 @@ func (m *Manager) shortcut(id string)error{
  m.mu.Lock();defer m.mu.Unlock()
  done,err:=m.operationLock();if err!=nil{return err};defer done()
  s,err:=spec(id);if err!=nil{return err}
+ if s.component(){return errors.New("组件不支持桌面快捷方式")}
  if err=m.requireEnabled(s);err!=nil{return err}
  if _,err=m.active(s);err!=nil{return err}
  // Shortcuts point to the stable original entry, never a versioned app.
