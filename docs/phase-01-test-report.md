@@ -21,3 +21,5 @@ CI：[Phase 01 native verification](https://github.com/Routilet/routilet/actions
 使用专用 OS 测试账户，不复用正式账号、课程及安装。记录操作系统版本、架构、CI run/commit、产物名、安装和离线启动实际结果。中文路径、取消候选、失败后旧版、回退、正在运行时清理、渠道隔离须分别实测；没有第二个可用版本时记录阻塞，不声称通过。保留失败日志，不关闭全局安全机制。macOS 下载 tar.gz 后解压，双击 Routilet.command；如 Gatekeeper 阻止，仅按可信来源单应用授权方式处理。Windows 解压测试包并启动 Routilet.exe。
 
 本次执行容器为 Linux Go 1.23.2，网络无法解析 GitHub，不能在该容器独立下载所需 Go module/toolchain；原生 CI 是自动验证入口。维护者实机验收未完成。
+
+初次 [CI run 45944334693](https://github.com/Routilet/routilet/actions/runs/45944334693) 的 macos-14 runner 未分配即取消；该镜像已于 2026-11-02 [退役](https://github.com/actions/runner-images/issues/13518)。改用 macos-15（arm64），仍在 CI 中强制检查宿主架构。
