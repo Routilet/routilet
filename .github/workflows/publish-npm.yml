@@ -2,7 +2,7 @@ name: Build and publish Routilet
 on:
   push:
     branches: [main]
-    paths: ['VERSION', '.github/workflows/publish-npm.yml']
+    paths: ['VERSION', '.github/workflows/publish-npm.yml', 'desktop/**']
   pull_request:
     branches: [main]
     paths: ['desktop/**', 'VERSION', '.github/workflows/publish-npm.yml']
