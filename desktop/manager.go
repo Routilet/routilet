@@ -176,7 +176,7 @@ func nativeEntry(snapshot string,s appSpec,version string)(string,error){
  if s.component(){if manifest.Adapter!="accoding"||manifest.Protocol!="routilet-oj-adapter/1"||platform.Executable!=""{return "",errors.New("适配器身份或协议不兼容")};platform.Executable=platform.Path}
  if !ok||platform.Executable==""||filepath.IsAbs(platform.Executable)||!filepath.IsLocal(filepath.FromSlash(platform.Executable)){return "",errors.New("当前平台没有有效入口")}
  entryPath:=filepath.Join(pkg,filepath.FromSlash(platform.Executable))
- entry,err:=filepath.EvalSymlinks(entryPath);if err!=nil{return "",fmt.Errorf("解析原生入口 %s: %w",entryPath,err)}
+ entry,err:=filepath.EvalSymlinks(entryPath);if err!=nil{return "",fmt.Errorf("解析原生入口 %s: %w；%s",entryPath,err,describeEntryPath(entryPath))}
  if !within(pkg,entry){return "",errors.New("可执行文件路径超出软件包")}
  f,err:=os.Open(entry);if err!=nil{return "",err};defer f.Close()
  st,err:=f.Stat();if err!=nil{return "",err};if !st.Mode().IsRegular(){return "",errors.New("入口不是普通文件")}
@@ -254,7 +254,8 @@ func (m *Manager) installPackageContext(ctx context.Context,job *installJob,snap
  b,err:=json.Marshal(map[string]any{"name":"routilet-managed-install","private":true,"dependencies":map[string]string{pkg:version}})
  if err!=nil{return err}
  if err=os.WriteFile(filepath.Join(snap,"package.json"),b,0600);err!=nil{return err}
- _,err=m.pnpmContext(ctx,job,snap,"install","--prod","--ignore-scripts","--no-frozen-lockfile","--registry="+registry,"--store-dir="+filepath.Join(m.root,"store"),"--reporter=append-only")
+ store,err:=prepareNativeInstall(snap,m.root);if err!=nil{return err}
+ _,err=m.pnpmContext(ctx,job,snap,"install","--prod","--ignore-scripts","--no-frozen-lockfile","--registry="+registry,"--store-dir="+store,"--reporter=append-only")
  return err
 }
 func (m *Manager) launch(id string)error{

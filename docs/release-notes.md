@@ -1,9 +1,8 @@
-# Routilet 0.1.4
+# Routilet 0.1.5
 
-- Windows ZIP 简化为 Routilet/，仅 Routilet.exe 是直接运行入口；依赖及许可证放入 runtime/，提供中文使用说明。
-- macOS ZIP 解压后只有 Routilet.app，保留原生签名；两个平台初始发行统一 ZIP。
-- 设置中保留唯一数据目录入口。
-- 支持禁用/启用独立应用，保留安装与课程数据，禁用后不检查更新、不接受新的启动或跨应用调用；允许卸载，不结束现有进程。
-- 安装诊断增加阶段与实际路径、检查随附 pnpm；兼容旧 Windows 平铺目录。CI 测试最终解压产物及自更新候选运行组件定位。
+- Windows 新安装快照明确使用 pnpm hoisted 普通目录和 copy 导入，独立 store-native 缓存；不再复用旧 store 中的内容，不删除旧缓存/安装/课程数据。macOS 保持原状。
+- 保留 manifest 路径范围和 SHA256 校验，不尝试绕过缺失文件或安全软件。
+- 原生入口缺失时报告 Stat 与父目录内容，区分路径解析失败、目录缺失及文件缺失。
+- CI 验证实际 Observer 包物理目录、新 store、重复修复及现有 ZIP/self-update 测试。
 
-此前用户报告 Windows 安装路径错误，尚未取得完整技术日志，根因未确认；需要实机复验。未改变 Manager npm 格式或自更新协议。
+用户报告 Observer 0.2.0 清单可读但 Windows 原生入口不存在或无法解析；尚未取得本机缺失文件的直接证据。此版为针对性修正，需用户复验。
