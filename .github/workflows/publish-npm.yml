@@ -46,6 +46,27 @@ jobs:
             404) echo existing=false >> "$GITHUB_OUTPUT" ;;
             *) echo "Release lookup failed: HTTP $code"; exit 1 ;;
           esac
+  frontend-interaction:
+    needs: plan
+    if: needs.plan.outputs.existing == 'false'
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: desktop
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+      - name: Test state and browser interactions (test-only Chromium)
+        run: |
+          set -euo pipefail
+          node --test tests/interaction.test.mjs
+          npm install --prefix out/ui-tools --no-save --ignore-scripts --no-audit --no-fund playwright@1.58.2
+          node out/ui-tools/node_modules/playwright/cli.js install --with-deps chromium
+          node --test tests/browser.test.mjs
   build:
     needs: plan
     if: needs.plan.outputs.existing == 'false'
@@ -212,7 +233,7 @@ jobs:
             desktop/out/manager-native-*.tar.gz
           if-no-files-found: error
   package-manager:
-    needs: [plan, build]
+    needs: [plan, build, frontend-interaction]
     runs-on: ubuntu-latest
     env:
       VERSION: ${{ needs.plan.outputs.version }}

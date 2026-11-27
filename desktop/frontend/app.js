@@ -32,6 +32,7 @@ function render(){
   r.update.hidden=!v.update;r.update.disabled=s.busy;r.update.title='更新至 v'+app.available;
   r.more.hidden=!v.manage;r.more.disabled=s.busy;r.more.title='管理 '+app.name;r.more.setAttribute('aria-label','管理 '+app.name);
   r.row.classList.toggle('unavailable',!v.enabled);
+  if(!v.manage&&r.more.getAttribute('aria-expanded')==='true')closeMenu();
  }
  for(const [id,r] of rows){if(!appById(id)){r.row.remove();rows.delete(id)}}
  const v=selfView(s.self);
@@ -93,7 +94,7 @@ taskCancel.onclick=async()=>{
 async function perform(a,mode){
  const installing=['install','update','repair','self'].includes(mode);
  const verbs={install:'安装',update:'更新',repair:'修复',self:'更新',launch:'打开',rollback:'回退',uninstall:'卸载',shortcut:'创建快捷方式'};
- const task=s.startTask(a.id,'正在'+verbs[mode]+' '+a.name+(installing?'…':''),installing);if(!task)return;
+ const task=s.startTask(a.id,'正在'+verbs[mode]+' '+a.name+'…',installing);if(!task)return;
  closeMenu();feedback('');render();let operationError=null,installed=false,closing=false;
  if(installing)poll(task);
  try{
@@ -107,9 +108,8 @@ async function perform(a,mode){
   if(mode==='install'||mode==='launch'){
    task.label='正在打开 '+a.name+'…';renderTask();
    if(mode==='install')await local();
-   await call('Launch',a.id);await call('Close');closing=true;
+   await call('Launch',a.id);await call('Close');closing=true;s.finishTask(task);render();
   }else{
-   await local();
    const done={update:'已更新',repair:'已修复',rollback:'已回退',uninstall:'已卸载',shortcut:'快捷方式已创建',self:'新版已准备就绪，退出后重新打开'};
    feedback(mode==='self'?done.self:a.name+' '+done[mode],mode==='self');
   }
@@ -117,6 +117,7 @@ async function perform(a,mode){
  finally{
   clearTimeout(task.timer);
   if(!closing){
+   task.installing=false;task.progress=null;
    try{await local()}catch(e){feedback('无法刷新本地状态，请重新打开 Routilet',true)}
    s.finishTask(task);render();
    if(operationError){
@@ -136,7 +137,7 @@ async function openData(){if(s.busy)return;try{await call('OpenData')}catch(e){i
 refresh.onclick=()=>void check();data.onclick=()=>void openData();$('#settings-data').onclick=()=>void openData();
 function renderSettings(){
  channelSelect.value=channelLoaded?channel:'';channelSelect.disabled=s.setting||!channelLoaded;
- settingsClose.disabled=s.setting;clean.disabled=s.setting;$('#settings-data').disabled=s.setting;
+ settingsClose.disabled=s.setting;clean.disabled=s.setting||settingsOpening;$('#settings-data').disabled=s.setting||settingsOpening;
  $('#settings-version').textContent=s.self?.version?'Routilet v'+s.self.version:'Routilet';
 }
 settings.onclick=async()=>{
@@ -158,7 +159,7 @@ channelSelect.onchange=async()=>{
  finally{s.endSetting();renderSettings();render();void check()}
 };
 clean.onclick=async()=>{
- if(!s.beginSetting())return;renderSettings();render();channelNote.textContent='正在清理未使用的应用版本…';
+ if(settingsOpening||!s.beginSetting())return;renderSettings();render();channelNote.textContent='正在清理未使用的应用版本…';
  try{const r=await call('Clean');channelNote.textContent='已移除 '+r.removed+' 个版本，保留 '+r.protected+' 个受保护版本。'+(r.failed?.length?' 部分文件未清理：'+r.failed.join('；'):'')}
  catch(e){channelNote.textContent='清理失败：'+errorText(e).summary}
  finally{s.endSetting();renderSettings();render();void check()}

@@ -28,4 +28,4 @@ menu.addEventListener('keydown',e=>{
 });
 document.addEventListener('pointerdown',e=>{if(!menu.hidden&&!menu.contains(e.target)&&!trigger?.contains(e.target))closeMenu()});
 window.addEventListener('resize',()=>closeMenu());
-document.addEventListener('scroll',()=>closeMenu(),true);
+document.addEventListener('scroll',e=>{if(!menu.contains(e.target))closeMenu()},true);
