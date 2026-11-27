@@ -44,12 +44,22 @@ func (d *Desktop) OpenData() error {
 }
 
 func run() error {
+ if len(os.Args)==2&&os.Args[1]=="--app-call-probe"{fmt.Println(appCallProtocol);return nil}
  if len(os.Args)==2&&os.Args[1]=="--manager-probe"{fmt.Println("routilet-manager/1 "+buildVersion);return nil}
  if len(os.Args)==2 && os.Args[1]=="--self-test" { return selfTest() }
  if len(os.Args)==4&&os.Args[1]=="--self-update-test"{return selfUpdateTest(os.Args[2],os.Args[3])}
  m,err:=newManager();if err!=nil{return err}
- if len(os.Args)==6&&os.Args[1]=="--supervise"{return m.supervise(os.Args[2],os.Args[3],os.Args[4],os.Args[5])}
- if len(os.Args)==3&&os.Args[1]=="--open-app"{return m.launch(os.Args[2])}
+ if len(os.Args)>1&&(os.Args[1]=="--open-app"||os.Args[1]=="--query-app"){
+  c,e:=parseAppCall(os.Args[1:]);if e!=nil{return e}
+  if p:=os.Getenv("ROUTILET_BOOTSTRAP");p!=""{if e=m.setBootstrap(p);e!=nil{return e}}
+  return m.callApp(c,os.Stdout,os.Stderr)
+ }
+ if len(os.Args)>=6&&os.Args[1]=="--supervise"{
+  var args []string
+  if len(os.Args)>6{if os.Args[6]!="--"||len(os.Args)==7{return fmt.Errorf("invalid supervisor arguments")};args=os.Args[7:]}
+  if p:=os.Getenv("ROUTILET_BOOTSTRAP");p!=""{if err=m.setBootstrap(p);err!=nil{return err}}
+  return m.supervise(os.Args[2],os.Args[3],os.Args[4],os.Args[5],args...)
+ }
  if len(os.Args)==4&&os.Args[1]=="--managed"{
   if err=m.setBootstrap(os.Args[2]);err!=nil{return err};m.ready=os.Args[3]
   if fixtureMode=="ready"{if err=os.WriteFile(m.ready,[]byte("ready"),0600);err!=nil{return err};time.Sleep(750*time.Millisecond);return nil}
@@ -70,4 +80,4 @@ func run() error {
  window.RegisterHook(events.Common.WindowClosing,func(e *application.WindowEvent){if m.progress().Active{e.Cancel()}})
  return app.Run()
 }
-func main(){if err:=run();err!=nil{fmt.Fprintln(os.Stderr,err);os.Exit(1)}}
+func main(){if err:=run();err!=nil{fmt.Fprintln(os.Stderr,err);os.Exit(appExitCode(err))}}

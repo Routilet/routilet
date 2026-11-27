@@ -1,6 +1,7 @@
 package main
 
 import (
+ "context"
  "errors"
  "fmt"
  "os"
@@ -63,44 +64,25 @@ func (m *Manager) startProtected(s appSpec,a activation)error{
  snap:=filepath.Join(m.appDir(s),a.Snapshot)
  runs:=filepath.Join(snap,".runs");if err:=os.MkdirAll(runs,0700);err!=nil{return err}
  marker,err:=os.MkdirTemp(runs,"run-");if err!=nil{return err}
- exe,err:=os.Executable();if err!=nil{_ = os.RemoveAll(marker);return err}
- cmd:=exec.Command(exe,"--supervise",s.ID,a.Snapshot,a.Version,filepath.Base(marker))
- hideChild(cmd)
- if err=cmd.Start();err!=nil{_ = os.RemoveAll(marker);return err}
- _=cmd.Process.Release()
- // The helper acknowledges that the OS accepted the start. Do not remove
- // a marker on timeout: it could already protect a live process.
- until:=time.Now().Add(10*time.Second)
- for time.Now().Before(until){
-  b,e:=os.ReadFile(filepath.Join(marker,"started"))
-  if e==nil&&string(b)=="ok"{return nil}
-  if b,e=os.ReadFile(filepath.Join(marker,"error"));e==nil{return errors.New(string(b))}
-  time.Sleep(50*time.Millisecond)
- }
- return errors.New("启动未确认；为安全起见保留运行标记")
+ return m.spawnSupervisor(s,a,marker,nil)
 }
-func (m *Manager) supervise(id,snapshot,version,run string)error{
+func (m *Manager) supervise(id,snapshot,version,run string,args ...string)error{
  if !validSnapshot(snapshot)||!strings.HasPrefix(run,"run-")||filepath.Base(run)!=run{return errors.New("无效运行标记")}
  s,err:=spec(id);if err!=nil{return err}
  snap:=filepath.Join(m.appDir(s),snapshot);marker:=filepath.Join(snap,".runs",run)
  if st,e:=os.Stat(marker);e!=nil||!st.IsDir(){return errors.New("缺少运行标记")}
  fail:=func(e error)error{_ = os.WriteFile(filepath.Join(marker,"error"),[]byte(e.Error()),0600);return e}
  entry,err:=nativeEntry(snap,s,version);if err!=nil{return fail(err)}
- var cmd *exec.Cmd
- if runtime.GOOS=="darwin"{
-  app:=entry
-  for filepath.Ext(app)!=".app"{p:=filepath.Dir(app);if p==app{return fail(errors.New("macOS 应用包不存在"))};app=p}
-  cmd=exec.Command("/usr/bin/open","-n","-W",app)
- }else{cmd=exec.Command(entry);cmd.Dir=filepath.Dir(entry)}
+ // Direct native launch preserves environment and exact argv on both
+ // platforms, and gives a reliable process lifetime instead of open -W.
+ cmd,err:=m.appCommand(context.Background(),entry,args);if err!=nil{return fail(err)}
  if err=cmd.Start();err!=nil{return fail(err)}
  if err=os.WriteFile(filepath.Join(marker,"started"),[]byte("ok"),0600);err!=nil{_ = cmd.Wait();return err}
  err=cmd.Wait()
- // open -W failure may be ambiguous; retain marker. Direct child on
- // Windows has certainly exited, even if it returned a nonzero status.
- if err!=nil&&runtime.GOOS=="darwin"{return fail(err)}
- // Delay removal briefly so the launching GUI can observe a fast exit.
+ // Direct child has exited, even if nonzero. Keep acknowledgement briefly.
  time.Sleep(time.Second)
- return os.RemoveAll(marker)
+ cleanup:=os.RemoveAll(marker)
+ if err!=nil{return err};return cleanup
 }
 func quoteShell(s string)string{return "'"+strings.ReplaceAll(s,"'","'\\''")+"'"}
 func (m *Manager) shortcut(id string)error{

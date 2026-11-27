@@ -27,5 +27,9 @@ func selfTest()error{
  if err!=nil{fmt.Println("Observer availability:",err);return nil}
  if err=m.install("observer");err!=nil{return fmt.Errorf("Observer %s: %w",v,err)}
  fmt.Println("PASS: Observer native manifest and hash",v)
+ var caps strings.Builder
+ if err=m.callApp(appCall{id:"observer",query:true,args:[]string{"--capabilities"}},&caps,os.Stderr);err!=nil{return err}
+ if !strings.Contains(caps.String(),"sessionSchemaVersions"){return fmt.Errorf("Observer capability response invalid: %s",caps.String())}
+ fmt.Println("PASS: actual Observer protected capability query",caps.String())
  return nil
 }
