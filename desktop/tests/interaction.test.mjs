@@ -37,3 +37,12 @@ test('progress is scoped to the current task; cancellation is only available bef
 test('errors have user-readable summary and retain technical detail',()=>{
  const p=errorText('pnpm: exit status 1\nERR_PNPM_FETCH');assert.match(p.summary,/软件包/);assert.match(p.raw,/ERR_PNPM/);
 });
+
+test('disabled apps remain manageable without install, launch or update',()=>{
+ const a={id:'observer',description:'观察',installed:'0.2.0',available:'0.2.1',update:true,releaseStatus:'available',disabled:true};
+ assert.equal(appView(a).action,'已禁用');assert.equal(appView(a).manage,true);assert.equal(appView(a).enabled,false);assert.equal(appView(a).update,false);
+ assert.equal(appView({...a,installed:''}).manage,true);
+ assert.equal(appView({...a,disabled:false}).action,'打开');
+ assert.equal(mergeLocal([a],[{...a,disabled:false,releaseStatus:'unknown',update:false}])[0].releaseStatus,'unknown');
+ assert.equal(checkSummary([{...a,releaseStatus:'unknown'}],{releaseStatus:'available'}),'检查完成');
+});
