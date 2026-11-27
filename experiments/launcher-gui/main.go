@@ -29,6 +29,8 @@ func (d *Desktop) Uninstall(id string) error{return d.manager.uninstall(id)}
 func (d *Desktop) Shortcut(id string) error{return d.manager.shortcut(id)}
 func (d *Desktop) Clean() error{return d.manager.clean()}
 func (d *Desktop) SelfInfo() SelfInfo{return d.manager.selfInfo()}
+func (d *Desktop) Channel()(string,error){return d.manager.channel()}
+func (d *Desktop) SetChannel(channel string)error{return d.manager.setChannel(channel)}
 func (d *Desktop) UpdateSelf() error{return d.manager.install("routilet")}
 func (d *Desktop) Ready() error{if d.manager.ready==""{return nil};return os.WriteFile(d.manager.ready,[]byte("ready"),0600)}
 func (d *Desktop) Launch(id string) error { return d.manager.launch(id) }

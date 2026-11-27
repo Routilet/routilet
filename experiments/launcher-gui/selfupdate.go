@@ -7,7 +7,6 @@ import(
  "os"
  "os/exec"
  "path/filepath"
- "regexp"
  "runtime"
  "strings"
  "time"
@@ -17,7 +16,6 @@ var buildVersion="0.1.0"
 // Set only for the never-published CI fixture. Production builds leave empty.
 var fixtureMode=""
 var managerSpec=appSpec{"routilet","Routilet","应用启动台","@routilet/routilet","latest"}
-var managerVersion=regexp.MustCompile(`^[0-9]+\.[0-9]+\.[0-9]+(?:-[0-9A-Za-z.-]+)?$`)
 type SelfInfo struct{
  Version string `json:"version"`
  Available string `json:"available"`
@@ -27,9 +25,9 @@ type SelfInfo struct{
 }
 func(m *Manager)selfInfo()SelfInfo{
  a:=SelfInfo{Version:buildVersion}
- if v,e:=m.active(managerSpec);e==nil&&newer(v.Version,buildVersion){a.Pending=true}
+ pending:="";if v,e:=m.active(managerSpec);e==nil&&newer(v.Version,buildVersion){pending=v.Version;a.Pending=true}
  v,e:=m.remote(managerSpec);if e!=nil{a.Note=e.Error();return a}
- a.Available=v;a.Update=newer(v,buildVersion)&&!a.Pending
+ a.Available=v;a.Update=newer(v,buildVersion)&&(pending==""||newer(v,pending))
  return a
 }
 func(m *Manager)setBootstrap(path string)error{

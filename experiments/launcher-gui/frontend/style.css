@@ -5,3 +5,5 @@
 .management{display:flex;flex-direction:column;gap:4px;margin:8px 0 16px}.management-button{text-align:left;padding:9px;border:1px solid var(--line)}
 
 .footer-actions{display:flex;gap:5px;align-items:center}
+
+.channel-select{font:inherit;color:var(--fg);background:var(--bg);border:1px solid var(--line);border-radius:7px;padding:8px;width:100%}.management .detail{line-height:1.5;margin-bottom:8px}

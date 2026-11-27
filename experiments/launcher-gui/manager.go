@@ -27,7 +27,7 @@ const pnpmVersion = "12.22.0"
 type appSpec struct { ID, Name, Description, Package, Channel string }
 var catalog=[]appSpec{
  {"companion","Companion","代码管理与本地评测","",""},
- {"observer","Observer","程序运行观察","@routilet/c-observer","next"},
+ {"observer","Observer","程序运行观察","@routilet/c-observer","latest"},
 }
 type AppState struct {
  ID string `json:"id"`
@@ -69,7 +69,7 @@ func (m *Manager) active(s appSpec)(activation,error){
  if !validSnapshot(a.Snapshot)||a.Version==""||(a.Previous!=""&&(!validSnapshot(a.Previous)||a.PreviousVersion=="")){return a,errors.New("安装记录无效")}
  return a,nil
 }
-func atomicJSON(path string,a activation)error{
+func atomicJSON(path string,a any)error{
  b,err:=json.Marshal(a);if err!=nil{return err}
  f,err:=os.CreateTemp(filepath.Dir(path),"activation-*.tmp");if err!=nil{return err}
  defer os.Remove(f.Name())
@@ -81,17 +81,19 @@ var observerVersion=regexp.MustCompile(`^0\.(?:[2-9]|[1-9][0-9]+)\.[0-9]+(?:-[0-
 func (m *Manager) remote(s appSpec)(string,error){return m.remoteContext(context.Background(),s)}
 func (m *Manager) remoteContext(ctx context.Context,s appSpec)(string,error){
  if s.Package==""{return "",errors.New("新版开发中")}
- // Request only the explicit channel; do not silently fall back to legacy TUI.
- addr:=registry+url.PathEscape(s.Package)+"/"+url.PathEscape(s.Channel)
+ channel,err:=m.channel();if err!=nil{return "",err}
+ return m.resolveRelease(ctx,s,channel)
+}
+func (m *Manager) fetchTag(ctx context.Context,s appSpec,tag string)(string,error){
+ addr:=registry+url.PathEscape(s.Package)+"/"+url.PathEscape(tag)
  req,err:=http.NewRequestWithContext(ctx,http.MethodGet,addr,nil);if err!=nil{return "",err}
  req.Header.Set("Accept","application/json")
  r,err:=m.client.Do(req);if err!=nil{return "",err};defer r.Body.Close()
- if r.StatusCode==http.StatusNotFound{return "",errors.New("原生预览版尚未发布")}
+ if r.StatusCode==http.StatusNotFound{return "",nil}
  if r.StatusCode!=200{return "",fmt.Errorf("软件源 HTTP %d",r.StatusCode)}
  var v struct{Version string}
  if err=json.NewDecoder(io.LimitReader(r.Body,4<<20)).Decode(&v);err!=nil{return "",err}
- if s.ID=="routilet"&&!managerVersion.MatchString(v.Version){return "",errors.New("管理器版本不兼容")}
- if s.ID=="observer"&&!observerVersion.MatchString(v.Version){return "",errors.New("原生预览版尚未发布")}
+ if !validRelease(v.Version){return "",errors.New("软件源版本号无效")}
  return v.Version,nil
 }
 func (m *Manager) list()[]AppState{
@@ -126,7 +128,7 @@ func (m *Manager) check()[]AppState{
 // dot-separated numeric identifiers, as in SemVer.
 func newer(a,b string)bool{
  split:=func(v string)([3]int,string){
-  core,pre,_:=strings.Cut(v,"-");var n [3]int
+  v,_,_=strings.Cut(v,"+");core,pre,_:=strings.Cut(v,"-");var n [3]int
   fmt.Sscanf(core,"%d.%d.%d",&n[0],&n[1],&n[2]);return n,pre
  }
  x,p:=split(a);y,q:=split(b)

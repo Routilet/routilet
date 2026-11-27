@@ -8,7 +8,7 @@ const confirm=document.querySelector('#confirm');
 const cancel=document.querySelector('#cancel');
 const icons={companion:'<svg viewBox="0 0 24 24" fill="none"><path d="m8 6-6 6 6 6m8-12 6 6-6 6m-2-15-4 18" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"/></svg>',observer:'<svg viewBox="0 0 24 24" fill="none"><path d="M2 12h5l3-8 4 16 3-8h5" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"/></svg>'};
 let apps=[],busy=false,checking=false,action=null,task=null,progress=null,generation=0;
-const data=document.querySelector("#data");const self=document.querySelector("#self");let selfInfo=null;
+const data=document.querySelector("#data");const self=document.querySelector("#self");let selfInfo=null;let channel="stable";let selfGeneration=0;
 function element(tag,cls,txt){const e=document.createElement(tag);if(cls)e.className=cls;if(txt)e.textContent=txt;return e}
 function show(title,text,fn=null){action=fn;document.querySelector('#message-title').textContent=title;document.querySelector('#message-text').textContent=text;cancel.hidden=!fn;confirm.textContent=fn?'继续':'确定';dialog.showModal()}
 confirm.onclick=()=>{const fn=action;action=null;dialog.close();if(fn)void fn()};
@@ -29,7 +29,7 @@ function render(){
   button.onclick=()=>{
    if(app.installed){void perform(app,'launch');return}
    if(app.id==='companion'){show(app.name,'新版 Companion 正在开发，尚无可安装的原生版本。');return}
-   show('安装 '+app.name,'将从 npm 官方仓库安装可用的原生预览版，安装完成后打开。',()=>perform(app,'install'));
+   show('安装 '+app.name,'将从 npm 官方仓库安装当前通道中最新的兼容版本，安装完成后打开。',()=>perform(app,'install'));
   };
   row.append(button);
   if(running){const stop=element("button","task-cancel","取消");stop.disabled=!progress?.cancellable;stop.onclick=async()=>{try{if(await call("Cancel")){progress={...progress,stage:"正在取消",cancellable:false,cancelled:true};render()}}catch(e){status.textContent=String(e)}};row.append(stop)}
@@ -37,7 +37,7 @@ function render(){
   if(app.installed&&!running){const more=element('button','icon-button','⋯');more.title='管理 '+app.name;more.disabled=busy;more.onclick=()=>manage(app);row.append(more)}
   section.append(row);
  }
- refresh.disabled=busy||checking;data.disabled=busy;self.disabled=busy;self.textContent=selfInfo?.pending?"重启以更新":selfInfo?.update?"Routilet 更新":"Routilet";
+ refresh.disabled=busy||checking;data.disabled=busy;self.disabled=busy;self.textContent=selfInfo?.update?"Routilet 更新":selfInfo?.pending?"重启以更新":"Routilet";
 }
 async function check(){
  if(busy||checking)return;
@@ -67,15 +67,33 @@ async function perform(app,mode){
 }
 refresh.onclick=()=>{void check();void checkSelf()};
 data.onclick=async()=>{try{await call('OpenData')}catch(e){show('无法打开目录',String(e))}};
-async function checkSelf(){try{selfInfo=await call('SelfInfo');render()}catch{}}
+async function checkSelf(){const stamp=++selfGeneration;try{const result=await call('SelfInfo');if(stamp===selfGeneration){selfInfo=result;render()}}catch{}}
 self.onclick=async()=>{
- if(busy)return;
- if(!selfInfo){status.textContent='检查 Routilet 版本…';await checkSelf();status.textContent=''}
- if(!selfInfo)return;
- if(selfInfo.pending){show('Routilet 更新','新版已准备就绪，关闭后重新打开 Routilet。',()=>call('Close'));return}
- if(selfInfo.update){show('更新 Routilet',selfInfo.version+' → '+selfInfo.available+'，完成后重新打开。',updateSelf);return}
- show('Routilet '+selfInfo.version,selfInfo.note||'暂无更新');
- const box=document.createElement('div');box.className='management';const b=element('button','management-button','清理不再使用的应用版本');b.onclick=async()=>{dialog.close();box.remove();try{await call('Clean');status.textContent='清理完成，保留当前、上一版及运行中的版本'}catch(e){show('清理失败',String(e))}};box.append(b);dialog.insertBefore(box,dialog.querySelector('.actions'));dialog.addEventListener('close',()=>box.remove(),{once:true});
+ if(busy||dialog.open)return;
+ try{channel=await call('Channel')}catch(e){show('无法读取发行通道',String(e));return}
+ if(dialog.open||busy)return;
+ const box=document.createElement('div');box.className='management';
+ const label=element('label','desc','发行通道');label.htmlFor='release-channel';
+ const select=element('select','channel-select');select.id='release-channel';
+ for(const [id,name] of [['stable','正式通道'],['test','测试通道']]){const o=element('option','',name);o.value=id;select.append(o)}select.value=channel;
+ const explanation=element('span','detail','测试通道允许更新的测试版；正式版较新时仍使用正式版。切换通道不会自动降级已安装版本。');
+ select.onchange=async()=>{
+  const requested=select.value;select.disabled=true;
+  try{
+   await call('SetChannel',requested);channel=requested;generation++;selfGeneration++;selfInfo=null;
+   apps=await call('List');render();dialog.close();status.textContent=requested==='test'?'已切换测试通道':'已切换正式通道';
+   while(checking)await new Promise(r=>setTimeout(r,50));
+   void check();void checkSelf();
+  }catch(e){select.value=channel;explanation.textContent=String(e)}
+  finally{select.disabled=false}
+ };
+ box.append(label,select,explanation);
+ const button=(name,fn)=>{const b=element('button','management-button',name);b.onclick=()=>{dialog.close();box.remove();void fn()};box.append(b)};
+ if(selfInfo?.update)button('更新 Routilet 至 '+selfInfo.available,()=>show('更新 Routilet',selfInfo.version+' → '+selfInfo.available+'，完成后重新打开。',updateSelf));
+ else if(selfInfo?.pending)button('关闭并准备重启',()=>call('Close'));
+ button('清理不再使用的应用版本',async()=>{try{await call('Clean');status.textContent='清理完成，保留当前、上一版及运行中的版本'}catch(e){show('清理失败',String(e))}});
+ show('Routilet '+(selfInfo?.version||''),selfInfo?.note||'管理与发行通道');
+ dialog.insertBefore(box,dialog.querySelector('.actions'));dialog.addEventListener('close',()=>box.remove(),{once:true});
 };
 async function updateSelf(){
  if(busy)return;busy=true;generation++;render();status.textContent='正在更新 Routilet…';

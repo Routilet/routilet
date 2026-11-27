@@ -8,7 +8,7 @@ Go + Wails v3.1.0，静态 Web 前端，固定 pnpm 12.22.0 随包分发；使�
 
 - 从实验分支 CI 下载对应平台归档并完整解压，运行 Routilet.exe / Routilet.app。macOS ad-hoc 签名、未公证；可信来源按系统单应用授权。Windows 使用系统 WebView2。
 - Companion 目前只展示“新版开发中”，不安装旧 TS/TUI。OJ 插件及 Exam Kit 不在首页；不做插件协议。
-- Observer 接入现有 @routilet/c-observer 的 next 渠道（GUI 预发行，至少 0.2.0 系列），不降级到旧 latest TUI。若尚未发行、网络失败或清单不匹配，提示具体原因。读取现有 manifest.json 的平台入口与 SHA-256；不要求修改 Observer。
+- Observer 接入现有 @routilet/c-observer 的兼容 GUI 版本（至少 0.2.0 系列），不降级到旧 TUI。默认正式通道；测试通道比较 latest 与 next。若尚未发行、网络失败或清单不匹配，提示具体原因。读取现有 manifest.json 的平台入口与 SHA-256；不要求修改 Observer。
 - 安装数据隔离于 OS UserConfigDir/Routilet（macOS ~/Library/Application Support/Routilet；Windows %APPDATA%\\Routilet），当前版本通过每应用 activation.json 记录；更新新建快照、校验后激活。不接管已有 Launcher、账号或课程。保留当前、上一版以及有运行标记的快照；跨进程文件锁串行化操作。应用监督进程退出后清除标记，异常终止时保留标记，避免误删。未验证应用自身派生并脱离的子进程。应用自身仍可能读取其正常用户配置。
 - 首页先读本地状态，再后台查版本；断网仍可打开已安装的应用。不检查 pnpm 新版本。应用更多菜单提供修复、卸载、回退、快捷方式（Windows .lnk / macOS .command，原始入口移动后需重建）。Routilet 底部入口检查自身最新版本；固定 pnpm 将新 Manager 安装至独立快照，校验协议，下一次打开由原入口启动，前端 Ready 超时或提前退出则回退。当前保留全部 Manager 快照，不清理可能运行中的版本。
 - CI 测试 Go 单测、真实 esbuild 原生包安装；若 Observer next 已发布，再验证其实际包清单和哈希。CI 不启动 GUI，不等于真机验收；macOS open 成功代表系统接收启动请求，并非应用已完成初始化。Windows 同理仅确认进程创建。若真机发现启动异常，再完善握手机制。
@@ -33,3 +33,7 @@ Go + Wails v3.1.0，静态 Web 前端，固定 pnpm 12.22.0 随包分发；使�
 ### 生命周期限制
 
 保留由本启动台打开的应用的运行标记。异常退出的标记不按时间自动失效；因此可能积累旧快照，只有确认没有运行进程后才可人工删除标记及清理。直接绕过入口启动底层快照或应用自行脱离的子进程不在当前保护契约内。macOS 快捷方式为 .command（会短暂打开终端），Windows 为 .lnk；不覆盖已有快捷方式。初始入口必须保留原位置。自更新候选不清理历史版本，避免删除运行中的 Manager。真实 GUI 启动握手、运行监督及快捷方式需双平台实机确认。
+
+### 发行通道
+
+底部 Routilet 管理入口提供全局正式/测试通道，适用于 Routilet 自身和各独立应用，设置保存在数据根 release-channel.json。默认正式通道仅接受兼容的 latest 正式版；测试通道查询 latest 和 next，按版本优先级选择更高的兼容版本，平级优先 latest。next 缺失时使用 latest；latest 查询失败时不猜测 next 是否更新，保留现有安装。切换通道只改变后续检查和安装候选，不自动降级已安装版本，不撤销已准备好的自更新；回退仍是显式操作。如果已准备的 Manager 版本低于新发现的正式版，优先显示更新入口。旧 Observer TUI 不属于兼容候选。pnpm 不受通道影响。
