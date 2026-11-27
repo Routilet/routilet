@@ -37,6 +37,9 @@ type AppState struct {
  Available string `json:"available"`
  Update bool `json:"update"`
  Rollback bool `json:"rollback"`
+ Previous string `json:"previous"`
+ ReleaseStatus string `json:"releaseStatus"`
+ LocalError string `json:"localError"`
  Note string `json:"note"`
 }
 type Manager struct {
@@ -99,10 +102,10 @@ func (m *Manager) fetchTag(ctx context.Context,s appSpec,tag string)(string,erro
 func (m *Manager) list()[]AppState{
  out:=make([]AppState,0,len(catalog))
  for _,s:=range catalog{
-  a:=AppState{ID:s.ID,Name:s.Name,Description:s.Description}
-  if s.Package==""{a.Note="新版开发中"}else{
+  a:=AppState{ID:s.ID,Name:s.Name,Description:s.Description,ReleaseStatus:"unknown"}
+  if s.Package==""{a.ReleaseStatus="development";a.Note="新版开发中"}else{
    current,err:=m.active(s)
-   if err==nil{a.Installed=current.Version;a.Rollback=current.Previous!=""}else if !os.IsNotExist(err){a.Note="安装记录异常"}
+   if err==nil{a.Installed=current.Version;a.Rollback=current.Previous!="";a.Previous=current.PreviousVersion}else if !os.IsNotExist(err){a.LocalError="安装记录异常"}
   }
   out=append(out,a)
  }
@@ -114,11 +117,11 @@ func (m *Manager) check()[]AppState{
   if s.Package==""{continue}
   v,err:=m.remote(s)
   if err!=nil{
-   if out[i].Installed==""{out[i].Note=err.Error()}
+   out[i].Note=err.Error()
+   if errors.Is(err,errNoRelease){out[i].ReleaseStatus="unavailable"}else{out[i].ReleaseStatus="error"}
    continue
   }
-  out[i].Available=v
-  // Channel changes can include rollback; do not advertise a downgrade.
+  out[i].ReleaseStatus="available";out[i].Available=v
   out[i].Update=out[i].Installed!=""&&newer(v,out[i].Installed)
  }
  return out
@@ -197,7 +200,8 @@ func (m *Manager) setupContext(ctx context.Context)error{
  return nil
 }
 func (m *Manager) install(id string)error{return m.installMode(id,false)}
-func (m *Manager) installMode(id string,repair bool)error{
+func (m *Manager) installMode(id string,repair bool)error{return m.installExpected(id,repair,"")}
+func (m *Manager) installExpected(id string,repair bool,expected string)error{
  s,err:=spec(id);if err!=nil{return err}
  if s.Package==""{return errors.New("新版尚未发布")}
  job,err:=m.beginJob(id);if err!=nil{return err}
@@ -208,7 +212,8 @@ func (m *Manager) installMode(id string,repair bool)error{
  old,oldErr:=m.active(s)
  var version string
  if repair {if oldErr!=nil{return oldErr};version=old.Version}else{version,err=m.remoteContext(ctx,s);if err!=nil{return err}}
- if s.ID=="routilet"&&!repair&&!newer(version,buildVersion){return errors.New("Routilet 已是当前版本")}
+ if expected!=""&&version!=expected{return errors.New("可用版本已变化，请重新检查更新")}
+ if s.ID=="routilet"&&!repair&&(!newer(version,buildVersion)||(oldErr==nil&&!newer(version,old.Version))){return errors.New("Routilet 已是当前版本或新版已准备就绪")}
  if oldErr==nil&&old.Version!=version&&!newer(version,old.Version){return errors.New("当前版本比发行渠道更新，不自动降级")}
  job.stage("准备安装")
  if err=m.setupContext(ctx);err!=nil{return err}
@@ -223,7 +228,7 @@ func (m *Manager) installMode(id string,repair bool)error{
  if err=job.commit();err!=nil{return err}
  if err=atomicJSON(filepath.Join(dir,"activation.json"),activation{Snapshot:filepath.Base(snap),Version:version,Previous:old.Snapshot,PreviousVersion:old.Version});err!=nil{return err}
  keep=true
- if s.ID!="routilet"{m.cleanup(s)}
+ if s.ID!="routilet"{_ = m.cleanup(s)}
  return nil
 }
 func (m *Manager) installPackage(snap,pkg,version string)error{return m.installPackageContext(context.Background(),nil,snap,pkg,version)}

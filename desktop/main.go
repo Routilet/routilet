@@ -23,15 +23,19 @@ type Desktop struct {
 func (d *Desktop) List() []AppState { return d.manager.list() }
 func (d *Desktop) Check() []AppState { return d.manager.check() }
 func (d *Desktop) Install(id string) error { return d.manager.install(id) }
+func (d *Desktop) InstallVersion(id,version string)error{return d.manager.installExpected(id,false,version)}
 func (d *Desktop) Repair(id string) error{return d.manager.installMode(id,true)}
 func (d *Desktop) Rollback(id string) error{return d.manager.rollback(id)}
+func (d *Desktop) RollbackTo(id,version string)error{return d.manager.rollbackExpected(id,version)}
 func (d *Desktop) Uninstall(id string) error{return d.manager.uninstall(id)}
 func (d *Desktop) Shortcut(id string) error{return d.manager.shortcut(id)}
-func (d *Desktop) Clean() error{return d.manager.clean()}
+func (d *Desktop) Clean()(CleanupReport,error){return d.manager.clean()}
 func (d *Desktop) SelfInfo() SelfInfo{return d.manager.selfInfo()}
+func (d *Desktop) SelfLocal() SelfInfo{return d.manager.selfLocal()}
 func (d *Desktop) Channel()(string,error){return d.manager.channel()}
 func (d *Desktop) SetChannel(channel string)error{return d.manager.setChannel(channel)}
 func (d *Desktop) UpdateSelf() error{return d.manager.install("routilet")}
+func (d *Desktop) UpdateSelfVersion(version string)error{return d.manager.installExpected("routilet",false,version)}
 func (d *Desktop) Ready() error{if d.manager.ready==""{return nil};return os.WriteFile(d.manager.ready,[]byte("ready"),0600)}
 func (d *Desktop) Launch(id string) error { return d.manager.launch(id) }
 func (d *Desktop) Close() { if !d.manager.progress().Active{d.native.Quit()} }
