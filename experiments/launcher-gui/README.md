@@ -28,4 +28,8 @@ Go + Wails v3.1.0，静态 Web 前端，固定 pnpm 12.22.0 随包分发；使�
 
 ## 自更新发行协议
 
-固定初始入口兼作备用 GUI。@routilet/routilet latest 包包含双平台预构建 Manager（manifest schema 1）；不包含 pnpm，使用初始入口同目录的固定 pnpm。`scripts/package-manager.py` 从已构建原生资产生成 npm tarball，不发布。macOS 候选 APP 需在打包前单独签名。CI 使用本地 0.1.1 测试 tarball，验证实际 pnpm 安装、清单和协议、激活记录及损坏后回退；真实 GUI Ready 及首次发行后的线上升级尚待真机。首次发行前需独立生成双平台包、确认许可证与签名、核实 npm 权限及实际发布流程。
+固定初始入口兼作备用 GUI。@routilet/routilet latest 包包含双平台预构建 Manager（manifest schema 1）；不包含 pnpm，使用初始入口同目录的固定 pnpm。`scripts/package-manager.py` 从已构建原生资产生成 npm tarball，不发布。macOS 候选 APP 需在打包前单独签名。CI 使用本地 0.1.1 测试 tarball，验证实际 pnpm 安装、清单和协议、激活记录及损坏后回退；真实 GUI Ready 及首次发行后的线上升级尚待真机。CI 额外生成 0.1.0 双平台 Manager npm dry-run tarball，不含 pnpm，不发布；首次发行前需验收签名、许可证、实际 registry 权限及发布流程。
+
+### 生命周期限制
+
+保留由本启动台打开的应用的运行标记。异常退出的标记不按时间自动失效；因此可能积累旧快照，只有确认没有运行进程后才可人工删除标记及清理。直接绕过入口启动底层快照或应用自行脱离的子进程不在当前保护契约内。macOS 快捷方式为 .command（会短暂打开终端），Windows 为 .lnk；不覆盖已有快捷方式。初始入口必须保留原位置。自更新候选不清理历史版本，避免删除运行中的 Manager。真实 GUI 启动握手、运行监督及快捷方式需双平台实机确认。

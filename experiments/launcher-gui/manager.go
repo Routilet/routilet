@@ -237,6 +237,7 @@ func (m *Manager) installPackageContext(ctx context.Context,job *installJob,snap
  return err
 }
 func (m *Manager) launch(id string)error{
+ if id=="routilet"{return errors.New("使用原始入口打开 Routilet")}
  m.mu.Lock();defer m.mu.Unlock()
  release,err:=m.operationLock();if err!=nil{return err};defer release()
  s,err:=spec(id);if err!=nil{return err}

@@ -98,7 +98,7 @@ jobs:
         run: |
           set -euo pipefail
           if [[ "$TARGET" == win32-x64 ]]; then
-            CGO_ENABLED=0 go build -tags production -trimpath -ldflags="-X main.buildVersion=0.1.1" -o out/candidate.exe .
+            CGO_ENABLED=0 go build -tags production -trimpath -ldflags="-H windowsgui -X main.buildVersion=0.1.1" -o out/candidate.exe .
             python scripts/package-manager.py --version 0.1.1 --windows out/candidate.exe --out out/manager-fixture.tgz
             CGO_ENABLED=0 go build -tags production -o out/package/self-update-test.exe .
             out/package/self-update-test.exe --self-update-test out/manager-fixture.tgz 0.1.1
@@ -111,6 +111,22 @@ jobs:
             python3 scripts/package-manager.py --version 0.1.1 --macos "$candidate" --out out/manager-fixture.tgz
             out/package/Routilet.app/Contents/MacOS/Routilet --self-update-test out/manager-fixture.tgz 0.1.1
           fi
+      - name: Stage native manager for release dry run
+        shell: bash
+        env:
+          TARGET: ${{ matrix.target }}
+        run: |
+          set -euo pipefail
+          mkdir -p out/manager-native
+          if [[ "$TARGET" == win32-x64 ]]; then
+            cp out/package/Routilet.exe out/manager-native/Routilet.exe
+          else
+            cp -R out/package/Routilet.app out/manager-native/Routilet.app
+            rm out/manager-native/Routilet.app/Contents/MacOS/pnpm
+            codesign --force --sign - out/manager-native/Routilet.app
+            codesign --verify --strict out/manager-native/Routilet.app
+          fi
+          tar -czf "out/manager-native-$TARGET.tar.gz" -C out/manager-native .
       - uses: actions/upload-artifact@v4
         with:
           name: routilet-gui-${{ matrix.target }}
@@ -119,4 +135,29 @@ jobs:
             experiments/launcher-gui/out/routilet-gui-*.tar.gz
             experiments/launcher-gui/go.mod
             experiments/launcher-gui/go.sum
+            experiments/launcher-gui/out/manager-native-*.tar.gz
+          if-no-files-found: error
+  package-manager:
+    needs: build
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - uses: actions/download-artifact@v4
+        with:
+          pattern: routilet-gui-*
+          path: native-artifacts
+      - name: Assemble both native manager platforms (no publication)
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p out/windows out/macos
+          tar -xzf "$(find native-artifacts -name manager-native-win32-x64.tar.gz -print -quit)" -C out/windows
+          tar -xzf "$(find native-artifacts -name manager-native-darwin-arm64.tar.gz -print -quit)" -C out/macos
+          python3 experiments/launcher-gui/scripts/package-manager.py --version 0.1.0 --windows out/windows/Routilet.exe --macos out/macos/Routilet.app --out out/routilet-0.1.0.tgz
+      - uses: actions/upload-artifact@v4
+        with:
+          name: routilet-manager-npm-dry-run
+          path: out/routilet-0.1.0.tgz
           if-no-files-found: error

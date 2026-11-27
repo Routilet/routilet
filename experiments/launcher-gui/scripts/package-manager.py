@@ -22,6 +22,6 @@ with tempfile.TemporaryDirectory() as d:
  if not platforms:raise SystemExit("no native artifacts")
  (root/"package.json").write_text(json.dumps({"name":"@routilet/routilet","version":a.version,"license":"MIT","description":"Routilet native application launcher","files":["bin","manifest.json","LICENSE"],"publishConfig":{"access":"public"}},indent=2),encoding="utf-8")
  (root/"manifest.json").write_text(json.dumps({"schemaVersion":1,"version":a.version,"platforms":platforms},indent=2),encoding="utf-8")
- shutil.copy2(pathlib.Path(__file__).resolve().parents[2]/"LICENSE",root/"LICENSE")
+ shutil.copy2(pathlib.Path(__file__).resolve().parents[3]/"LICENSE",root/"LICENSE")
  a.out.parent.mkdir(parents=True,exist_ok=True)
  with tarfile.open(a.out,"w:gz") as tar:tar.add(root,arcname="package")

@@ -65,7 +65,7 @@ async function perform(app,mode){
  }catch(e){if(progress?.cancelled||String(e).includes('context canceled'))status.textContent='已取消，原有版本不受影响';else{status.textContent='操作未完成';show('操作失败',String(e))}}
  finally{if(timer!==null)clearInterval(timer);task=null;progress=null;busy=false;render()}
 }
-refresh.onclick=check;
+refresh.onclick=()=>{void check();void checkSelf()};
 data.onclick=async()=>{try{await call('OpenData')}catch(e){show('无法打开目录',String(e))}};
 async function checkSelf(){try{selfInfo=await call('SelfInfo');render()}catch{}}
 self.onclick=async()=>{
@@ -75,6 +75,7 @@ self.onclick=async()=>{
  if(selfInfo.pending){show('Routilet 更新','新版已准备就绪，关闭后重新打开 Routilet。',()=>call('Close'));return}
  if(selfInfo.update){show('更新 Routilet',selfInfo.version+' → '+selfInfo.available+'，完成后重新打开。',updateSelf);return}
  show('Routilet '+selfInfo.version,selfInfo.note||'暂无更新');
+ const box=document.createElement('div');box.className='management';const b=element('button','management-button','清理不再使用的应用版本');b.onclick=async()=>{dialog.close();box.remove();try{await call('Clean');status.textContent='清理完成，保留当前、上一版及运行中的版本'}catch(e){show('清理失败',String(e))}};box.append(b);dialog.insertBefore(box,dialog.querySelector('.actions'));dialog.addEventListener('close',()=>box.remove(),{once:true});
 };
 async function updateSelf(){
  if(busy)return;busy=true;generation++;render();status.textContent='正在更新 Routilet…';

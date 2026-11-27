@@ -35,6 +35,7 @@ func (m *Manager) cleanup(s appSpec){
  }
 }
 func (m *Manager) rollback(id string)error{
+ if id=="routilet"{return errors.New("不能通过应用管理修改 Routilet 自身")}
  m.mu.Lock();defer m.mu.Unlock()
  done,err:=m.operationLock();if err!=nil{return err};defer done()
  s,err:=spec(id);if err!=nil{return err}
@@ -44,6 +45,7 @@ func (m *Manager) rollback(id string)error{
  return atomicJSON(filepath.Join(m.appDir(s),"activation.json"),activation{Snapshot:a.Previous,Version:a.PreviousVersion,Previous:a.Snapshot,PreviousVersion:a.Version})
 }
 func (m *Manager) uninstall(id string)error{
+ if id=="routilet"{return errors.New("不能通过应用管理修改 Routilet 自身")}
  m.mu.Lock();defer m.mu.Unlock()
  done,err:=m.operationLock();if err!=nil{return err};defer done()
  s,err:=spec(id);if err!=nil{return err}
@@ -102,13 +104,14 @@ func (m *Manager) supervise(id,snapshot,version,run string)error{
 }
 func quoteShell(s string)string{return "'"+strings.ReplaceAll(s,"'","'\\''")+"'"}
 func (m *Manager) shortcut(id string)error{
+ if id=="routilet"{return errors.New("不能通过应用管理修改 Routilet 自身")}
  m.mu.Lock();defer m.mu.Unlock()
  done,err:=m.operationLock();if err!=nil{return err};defer done()
  s,err:=spec(id);if err!=nil{return err}
  if _,err=m.active(s);err!=nil{return err}
  // Shortcuts point to the stable original entry, never a versioned app.
  if runtime.GOOS=="windows"{
-  cmd:=exec.Command("powershell.exe","-NoProfile","-NonInteractive","-Command",`$w=New-Object -ComObject WScript.Shell; $p=Join-Path ($w.SpecialFolders.Item('Desktop')) ($env:ROUTILET_SHORTCUT_NAME+'.lnk'); $s=$w.CreateShortcut($p); $s.TargetPath=$env:ROUTILET_BOOTSTRAP; $s.Arguments='--open-app '+$env:ROUTILET_APP_ID; $s.Save()`)
+  cmd:=exec.Command("powershell.exe","-NoProfile","-NonInteractive","-Command",`$w=New-Object -ComObject WScript.Shell; $p=Join-Path ($w.SpecialFolders.Item('Desktop')) ($env:ROUTILET_SHORTCUT_NAME+'.lnk'); if(Test-Path -LiteralPath $p){throw 'Shortcut already exists'}; $s=$w.CreateShortcut($p); $s.TargetPath=$env:ROUTILET_BOOTSTRAP; $s.Arguments='--open-app '+$env:ROUTILET_APP_ID; $s.Save()`)
   hideChild(cmd)
   cmd.Env=append(os.Environ(),"ROUTILET_SHORTCUT_NAME="+s.Name,"ROUTILET_BOOTSTRAP="+m.bootstrap,"ROUTILET_APP_ID="+id)
   out,e:=cmd.CombinedOutput();if e!=nil{return fmt.Errorf("快捷方式: %w %s",e,out)};return nil
