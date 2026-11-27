@@ -1,0 +1,347 @@
+<!doctype html>
+<html lang="zh-CN">
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Accoding Companion 使用说明</title>
+<style>
+  :root { color-scheme: light dark; --paper: #fcfaf6; --ink: #27251f; --accent: #246450; --line: #d4dcd4; --panel: #edf3ee; }
+  @media (prefers-color-scheme: dark) {
+    :root { --paper: #18211e; --ink: #efeee5; --accent: #9ed8b2; --line: #445b53; --panel: #25332e; }
+  }
+  * { box-sizing: border-box; }
+  body { margin: 0; background: var(--paper); color: var(--ink); font: 17px/1.65 system-ui, sans-serif; }
+  main { max-width: 820px; margin: auto; padding: 3rem 1.35rem; }
+  h1 { font-size: clamp(2rem, 6vw, 3rem); line-height: 1.15; margin: .2rem 0 1rem; }
+  h2 { line-height: 1.25; margin: 2.3rem 0 .75rem; }
+  h3 { margin-bottom: .3rem; }
+  header { border-top: 4px solid var(--accent); padding-top: 1.25rem; }
+  a { color: var(--accent); }
+  nav { display: flex; flex-wrap: wrap; gap: .25rem 1.1rem; padding: .65rem 0; border-block: 1px solid var(--line); }
+  kbd, code { background: var(--panel); border-radius: .2rem; padding: .12em .35em; }
+  ul, ol { padding-left: 1.4rem; }
+  li + li { margin-top: .35rem; }
+  .tip { border-inline-start: 3px solid var(--accent); padding-inline-start: .8rem; }
+  .example { background: var(--panel); border-inline-start: 3px solid var(--accent); padding: .65rem 1rem; border-radius: .4rem; }
+  .example ul { margin: .3rem 0; }
+  figure { margin: 1rem 0; }
+  .preview { display: block; width: min(100%, 440px); }
+  .preview img { display: block; width: 100%; max-height: 165px; object-fit: cover; object-position: top; border: 1px solid var(--line); border-radius: .4rem; }
+  figcaption { margin-top: .35rem; }
+  dialog { max-width: min(96vw, 1350px); padding: .75rem; border: 1px solid var(--line); }
+  dialog img { width: 100%; display: block; }
+  .annotated { position: relative; }
+  .callout { position: absolute; border: 3px solid #bb451d; border-radius: .25rem; pointer-events: none; }
+  .courses { top: 15.6%; left: 2%; width: 14.5%; height: 5.7%; }
+  .contest-id { top: 13.7%; left: 18.5%; width: 4%; height: 4.7%; }
+  dialog form { text-align: right; margin-bottom: .5rem; }
+  dialog button { font: inherit; }
+  section { scroll-margin-top: 1.5rem; }
+  article { margin-top: 1.15rem; }
+  pre { max-width: 100%; overflow: auto; padding: 1rem; border-radius: .45rem; background: #1b2623; color: #edf5ef; font: .9rem/1.55 ui-monospace, monospace; }
+  .type { color: #8bdbe9; }
+  .function { color: #9ee0a5; font-weight: 650; }
+  .difference { color: #ffaea2; }
+  .pages { display: flex; flex-wrap: wrap; justify-content: space-between; align-items: center; gap: .5rem; border-top: 1px solid var(--line); padding-top: 1rem; }
+  .pages button { color: var(--ink); background: var(--panel); border: 1px solid var(--line); border-radius: .35rem; padding: .4rem .8rem; font: inherit; }
+  .pages button:disabled { opacity: .45; }
+  nav [aria-current] { font-weight: bold; }
+  footer { border-top: 1px solid var(--line); margin-top: 2rem; padding-top: .75rem; }
+  .roles { display: grid; grid-template-columns: minmax(8rem, 1fr) 3fr; gap: .55rem 1rem; padding: .9rem 0; border-block: 1px solid var(--line); }
+  .roles dt { font-weight: 700; color: var(--accent); }
+  .roles dd { margin: 0; }
+  .steps { padding-left: 1.5rem; }
+  .io, .compare, .two, .three { display: grid; gap: .65rem; grid-template-columns: repeat(2,minmax(0,1fr)); }
+  .three { grid-template-columns: repeat(3,minmax(0,1fr)); }
+  .io pre { margin: .35rem 0 0; }
+  .compare > div, .node { background: var(--panel); border: 1px solid var(--line); border-radius: .4rem; padding: .8rem; }
+  .compare p { margin: .25rem 0 0; }
+  .compare > div:last-child, .node.shared { border-color: var(--accent); }
+  .shared-diagram, .assembly { margin: 1rem 0; padding: .8rem; border: 1px solid var(--line); border-radius: .55rem; text-align: center; }
+  .node small { display: block; font-size: .83rem; margin-top: .2rem; }
+  .connector, .arrow { color: var(--accent); font-weight: bold; line-height: 1.5; padding: .15rem; }
+  .connector small { font-weight: normal; }
+  .tiles { display: grid; grid-template-columns: repeat(10,1fr); gap: 3px; margin: .5rem auto; max-width: 14rem; }
+  .tiles i { height: 10px; border-radius: 2px; background: var(--line); }
+  .tiles i.used { background: var(--accent); }
+  .comment, .muted { color: #a2b3aa; }
+  .tab-selected { background: #8bdbe9; color: #172b2a; font-weight: bold; }
+  @media(max-width: 520px) {
+    main { padding: 1.5rem 1rem; }
+    body { font-size: 16px; }
+    h2 { margin-top: 1.5rem; }
+    .roles { grid-template-columns: 1fr; gap: .2rem; }
+    .roles dd { margin-bottom: .6rem; }
+    .node { padding: .55rem .25rem; }
+    .node code { padding: .1em; }
+    .compare > div { padding: .6rem; }
+  }
+</style>
+<main>
+<header>
+  <h1>Accoding Companion 使用说明</h1>
+  <p>从第一次导入比赛，到使用 C Exam Kit 写出程序、测试并提交。</p>
+</header>
+<nav aria-label="使用说明模块">
+  <a href="#install">1. 认识与安装</a><a href="#course">2. 导入比赛</a><a href="#kit">3. 使用函数库</a><a href="#solve">4. 测试与提交</a><a href="#update">5. 日常使用</a>
+</nav>
+<section id="install">
+  <h2>认识软件与完成安装</h2>
+  <article><h3>这两个工具是做什么的？</h3>
+    <p>Accoding Companion 是一个非官方的课程编程助手。它把 Accoding 上的题目和样例下载到电脑中，让你在熟悉的编辑器里写代码，再回到 Companion 运行样例、提交评测。</p>
+    <dl class="roles">
+      <dt>Companion</dt><dd>负责导入、管理题目、本地评测和提交。</dd>
+      <dt>C Exam Kit</dt><dd>提供常用 C 语言函数和离线速查手册，例如读入数组、排序、字符串处理和数学计算。</dd>
+      <dt>C / C++ 编译器</dt><dd>将你的代码编译成可运行的程序，例如 GCC 或 Clang。</dd>
+    </dl>
+    <p class="tip"><strong>使用 C Exam Kit 时，查到函数就能直接调用。</strong>不需要自己复制函数实现。Companion 会在测试和提交时自动整合所需函数。第 3 模块会解释这一机制。</p>
+  </article>
+  <article><h3>首次安装与启动</h3>
+    <p>完整解压启动包。Windows 双击 <strong>Accoding Launcher.exe</strong>，macOS 双击 <strong>Accoding Launcher.command</strong>。以后都从这个解压后的文件夹打开启动器。</p>
+    <p>在终端用方向键移动选项，按回车确认。保持联网，选择「安装」，启动器会自动准备运行环境、Companion 和 C Exam Kit。安装就绪后选择「启动」。</p>
+    <pre>Accoding 启动器  v@LAUNCHER_VERSION@
+
+尚未安装
+
+› 安装
+  使用说明</pre>
+    <p class="tip">启动器不安装 C/C++ 编译器。安装、导入和查看手册不需要编译器；第一次运行样例时若找不到编译器，软件会显示具体错误及<a href="编译环境配置.html">编译环境配置指引</a>的位置。下载失败时恢复联网后重试安装。</p>
+  </article>
+</section>
+<section id="course">
+  <h2>导入第一场比赛</h2>
+  <article><h3>找到比赛 ID</h3>
+    <p>在 Accoding 网页打开课程，选择左侧「课程比赛」。找到想导入的比赛，记下第一列的比赛 ID。下图的期末复习赛 ID 为 <strong>1359</strong>，实际使用时请换成自己的比赛 ID。</p>
+  <figure>
+    <a class="preview" id="contest-preview" href="images/contest-list.png" aria-label="放大查看课程比赛截图">
+      <img src="images/contest-list.png" alt="Accoding 的课程比赛列表，左侧为课程比赛，第一行左侧的比赛 ID 为 1359">
+    </a>
+    <figcaption><a href="images/contest-list.png">打开原图</a>，查看列表第一列的比赛 ID。</figcaption>
+  </figure>
+  <dialog id="contest-image" aria-label="课程比赛截图">
+    <form method="dialog"><button>关闭大图</button></form>
+    <div class="annotated">
+      <img src="images/contest-list.png" alt="课程比赛列表截图，标注了左侧课程比赛和首行比赛 ID 1359">
+      <span class="callout courses" aria-hidden="true"></span><span class="callout contest-id" aria-hidden="true"></span>
+    </div>
+  </dialog>
+  </article>
+  <article><h3>导入、登录与首次配置</h3>
+    <ol class="steps">
+      <li>回到 Companion，选「导入 → 导入比赛 / 作业」。</li>
+      <li>如果未登录，软件会自动提示登录 Accoding。输入账号和密码；Tab 切换字段，Space 勾选保持登录，Enter 确认。共用电脑建议不保持登录。</li>
+      <li>输入比赛 ID。首次还没有课程目录时，软件会提示选择课程文件夹和语言。</li>
+    </ol>
+    <p>课程文件夹是<strong>这门课所有比赛和题目的总目录</strong>，不是一场比赛或一道题的目录。粘贴完整路径、拖入文件夹，或者输入希望新建的目录路径。选择 C 或 C++ 后，软件继续导入。</p>
+    <pre>课程目录（可粘贴或拖入路径）
+…/C-lang-course
+
+选择课程的编程语言
+❯ C
+  C++</pre>
+    <p>不必提前进入设置。以后导入同一门课的其他比赛会沿用当前课程目录。</p>
+  </article>
+  <article><h3>认识你的课程文件夹</h3>
+    <p>导入结束后，每场比赛、每道题都有自己的文件夹。例如：</p>
+    <pre>C-lang-course/               ← 选择这一层
+├─ R-期末复习赛/
+│  ├─ A-签到表/
+│  │  ├─ 题目.md
+│  │  └─ main.c
+│  └─ AA-gcd-lcm quiz/
+├─ E8-第八次练习赛/
+└─ .accoding/                ← 软件管理的内部资料</pre>
+    <p>进入一道题后选择「打开代码目录」。<code>题目.md</code> 是本地题面，<code>main.c</code>（C++ 为 <code>main.cpp</code>）是你要编辑的源文件。</p>
+    <p class="tip">不要随意删除或修改课程根目录下的 <code>.accoding</code>，其中保存样例、题目信息、函数库等资料。备份课程时，建议复制整个课程目录，而不是只复制源文件。</p>
+  </article>
+</section>
+<section id="kit">
+  <h2>理解并使用 C Exam Kit</h2>
+  <article><h3>查到函数，就能直接使用</h3>
+    <p>以一道教学用的小题为例：输入 n 个整数，将它们从小到大排列并输出（1 ≤ n ≤ 1000）。这不是前面截图中的特定题目，只用来说明函数库的使用方法。</p>
+    <div class="io"><div><strong>输入</strong><pre>5
+4 1 3 2 1</pre></div><div><strong>输出</strong><pre>1 1 2 3 4</pre></div></div>
+    <p>传统板子需要查找并复制函数实现。使用 C Exam Kit 则不同：<strong>题目模板已经引入整个函数库，你只需查阅调用方式。</strong></p>
+    <div class="compare"><div><strong>传统板子</strong><p>查找实现 → 复制函数 → 调用</p></div><div><strong>C Exam Kit</strong><p>查阅用法 → 直接调用</p></div></div>
+    <p>这道题会用到读整数、读数组、排序和输出数组四种功能。下一页就来找出排序接口。</p>
+  </article>
+  <article><h3>按 H 查用法，而不是找源码</h3>
+    <p>在 C 课程或题目页面按 <kbd>H</kbd> 打开对应版本的函数速查。可以逐级浏览，也可以按 <kbd>/</kbd> 搜索中文用途或函数名，例如「排序」或 <code>sort_ints</code>。</p>
+    <pre class="terminal"><span class="muted">C 函数速查                         v0.6.9
+数组与结构体 › 排序与查找 › 排序与去重</span>
+<strong>数组排序</strong>
+────────────────────────────────────
+<span class="tab-selected">[int]</span>  long long  double    Tab 切换
+
+<span class="type">函数接口</span>
+<span class="type">void</span> <span class="function">sort_ints</span>(<span class="type">int</span> *a, <span class="type">int</span> n);
+<span class="type">void</span> <span class="function">sort_ints_desc</span>(<span class="type">int</span> *a, <span class="type">int</span> n);
+
+<span class="type">使用说明</span>
+原地排序前 n 项。第一个接口升序，
+第二个接口降序。
+
+<span class="type">调用示例</span> · C 复制代码
+<span class="type">int</span> a[] = {3, 1, 3, 2};
+<span class="function">sort_ints</span>(a, 4);
+<span class="function">sort_ints_desc</span>(a, 4);</pre>
+    <p>从这里能知道：升序调用 <code>sort_ints(a,n)</code>，其中 n 是元素数量。函数直接修改原数组，无需接收返回值。</p>
+    <p><kbd>Tab</kbd> / <kbd>Shift</kbd>+<kbd>Tab</kbd> 切换类型，<kbd>C</kbd> 复制当前示例，<kbd>U</kbd>（目录页）查看通用使用约定。<kbd>R</kbd> 查看相关操作，<kbd>Esc</kbd> 返回，<kbd>G</kbd> 回首页，<kbd>H</kbd> 关闭并保留阅读位置。长代码可左右滚动。</p>
+  </article>
+  <article><h3>写出完整的排序程序</h3>
+    <p>打开题目的 <code>main.c</code>。保留开头自动生成的脚手架头文件引用，在其下方写程序。下面四个库函数都可以直接使用。</p>
+    <pre><span class="comment">// 保留题目原有的头文件引用</span>
+<span class="type">int</span> <span class="function">main</span>(<span class="type">void</span>) {
+    <span class="type">int</span> n = <span class="function">read_int</span>();
+    <span class="type">int</span> a[1000];
+
+    <span class="function">read_ints</span>(a, n);           <span class="comment">// 读 n 个整数</span>
+    <span class="function">sort_ints</span>(a, n);           <span class="comment">// 升序排序</span>
+    <span class="function">print_ints</span>(a, n, " ", "\n"); <span class="comment">// 空格分隔</span>
+    <span class="type">return</span> 0;
+}</pre>
+    <p>无需另外添加排序函数、输入函数或输出函数的定义。可以只选用你需要的函数，也可以自己写算法、自定义函数以及使用 C 标准库。</p>
+    <div class="tip"><strong>复制示例时：</strong>几行调用代码放入现有程序；含 <code>main</code> 的完整程序框架用于替换原程序主体。不要产生两个 main，也不要删掉已有头文件引用。</div>
+  </article>
+  <article><h3>为什么开头有一行陌生的头文件？</h3>
+    <p>你可能熟悉 <code>#include &lt;stdio.h&gt;</code>。C 语言也允许通过双引号引用本地头文件：</p>
+    <pre><span class="type">#include</span> "../../.accoding/presets/0.6.9/expanded.h"</pre>
+    <p>这行只是路径示例，不要照抄；每道题的真实路径由 Companion 自动生成。它指向课程目录中对应版本的完整函数库。C 的预处理器会读取其中的内容，因此在编辑器中就可以使用这些函数，不需要特殊编程语法。</p>
+    <div class="shared-diagram" aria-label="同一版本的共享头文件被三道题引用">
+      <div class="node shared"><strong>共享头文件 expanded.h</strong><small>当前版本的完整函数库</small></div>
+      <div class="connector">↑ &nbsp; ↑ &nbsp; ↑ <small>各自的 #include</small></div>
+      <div class="three"><div class="node">题 A<br><code>main.c</code></div><div class="node">题 B<br><code>main.c</code></div><div class="node">题 C<br><code>main.c</code></div></div>
+    </div>
+    <p><strong>不要手动修改这行引用或共享头文件。</strong>其他普通自定义函数直接写在 main.c 中；当前 Companion 不会自动装配你另写的任意本地头文件。</p>
+  </article>
+  <article><h3>OJ 没有函数库，怎么编译？</h3>
+    <p>本地头文件只存在你的电脑上，直接把原始 <code>main.c</code> 粘贴到 OJ 网页，服务器通常找不到这个文件。Companion 的核心功能就是自动解决这个问题。</p>
+    <div class="assembly" aria-label="按需装配流程">
+      <div class="two"><div class="node"><strong>你的 main.c</strong><small>解题代码、函数调用</small></div><div class="node"><strong>完整函数库</strong><div class="tiles" aria-hidden="true"><i></i><i></i><i class="used"></i><i></i><i></i><i></i><i></i><i class="used"></i><i></i><i class="used"></i><i></i><i></i><i></i><i></i><i></i><i class="used"></i><i></i><i class="used"></i><i></i><i></i></div><small>着色项：所需组件及依赖</small></div></div>
+      <div class="arrow">↓</div><div class="node shared"><strong>Companion 自动装配</strong><small>提取实际引用的组件，补全依赖，去掉注释</small></div>
+      <div class="arrow">↓</div><div class="node"><strong>独立、完整的 C 源码</strong><small>不再依赖本地脚手架头文件</small></div>
+      <div class="arrow">↓</div><div class="two"><div class="node">本地编译与测试</div><div class="node">OJ 提交评测</div></div>
+    </div>
+    <p>它不会把整个函数库全部提交，而是按需装配。测试和提交使用同一份装配后的代码；原始 main.c 不会被覆盖，原注释也会保留在你的文件里。</p>
+    <p class="tip"><strong>使用 Companion 运行样例和提交。</strong>不要将仍包含本地头文件引用的原始源码直接提交到网页。</p>
+  </article>
+  <article><h3>使用函数库的几个重要约定</h3>
+    <dl class="roles">
+      <dt>输入不要混用</dt><dd>同一份标准输入选择库内读入函数，或选择标准输入函数。不要混用 <code>read_int</code> 与 <code>scanf</code>、<code>getchar</code>、<code>fgets</code> 等。输出可照常用 <code>printf</code>。</dd>
+      <dt>数组容量要足够</dt><dd>如 <code>read_ints(a,n)</code> 的 n 是元素个数，a 必须有足够空间。自动容量接口接收实际数组；指针和数组形参改用对应的 <code>*_into</code> 接口。</dd>
+      <dt>遵守接口条件</dt><dd>例如二分查找要求数组已经排序；下标从 0 开始，区间通常左闭右开。使用前看手册说明。库的输入输出与算法都需要你按题意组合。</dd>
+    </dl>
+    <p class="tip">更完整的约定可在手册目录按 U 查阅。C++ 课程不使用这套 C99 函数库，仍然可以用 Companion 导入、测试和提交普通 C++ 程序。</p>
+  </article>
+</section>
+<section id="solve">
+  <h2>完成第一道题目</h2>
+  <article><h3>保存并运行样例</h3>
+    <p>在编辑器中写完、保存源文件，回到 Companion 选择「运行样例」。软件读取已经保存的文件，按需装配并调用本地编译器，将程序输出与导入的官方样例比较。</p>
+    <div class="io"><div><strong>排序示例输入</strong><pre>5
+4 1 3 2 1</pre></div><div><strong>期望输出</strong><pre>1 1 2 3 4</pre></div></div>
+    <p>假如误用了降序接口，样例可能出现：</p>
+    <pre>行号  样例输出   我的输出
+<span class="difference">! 1</span>   <span class="difference">1 1</span> 2 <span class="difference">3 4</span>  <span class="difference">4 3</span> 2 <span class="difference">1 1</span></pre>
+    <p>这时应回到代码中修正 <code>sort_ints_desc</code> 为 <code>sort_ints</code>，保存后再测试。实际题目的输入和期望输出由软件提供。若找不到编译器，请参照<a href="编译环境配置.html">编译环境配置指引</a>；若编译失败，则阅读报错并修正程序。</p>
+  <p>测试详情仅将不同字符标红。<kbd>Tab</kbd> / <kbd>Shift</kbd>+<kbd>Tab</kbd> 切换样例对比、编译诊断与运行日志（有对应内容时显示）；<kbd>[</kbd> / <kbd>]</kbd> 切换样例或诊断，方向键滚动，<kbd>PageUp</kbd> / <kbd>PageDown</kbd> 翻页，<kbd>Home</kbd> / <kbd>End</kbd> 跳转首尾，<kbd>N</kbd> / <kbd>P</kbd> 跳转差异，<kbd>Esc</kbd> 返回。编译成功但存在警告时，题目页显示警告数量，可通过「查看测试详情」阅读；警告不阻止提交。编译诊断保留原文，已知常见警告默认显示中文解释与源码上下文，按 <kbd>Enter</kbd> 展开或收起原文；未知诊断直接展示原文。运行日志中的 stderr 不参与答案比较。</p>
+    </article>
+  <article><h3>提交通过样例的版本</h3>
+    <p>样例通过后选择「提交本次通过的版本」。确认后 Companion 提交测试时使用的那份独立源码，而不是原始含本地头文件的文件。</p>
+    <pre>❯ 提交本次通过的版本</pre>
+    <p><strong>本地样例通过不等于 AC。</strong>OJ 还有隐藏测试数据。提交后查看平台评测结果；若修改了 main.c，要保存并重新运行样例，再提交新版本。</p>
+  </article>
+</section>
+<section id="update">
+  <h2>日常使用与更新</h2>
+  <article><h3>联网与离线分别能做什么？</h3>
+    <p>已经导入的题目、函数速查、代码编写和本地样例测试均可离线使用（本地测试需要已有编译器）。导入新题、登录、向 OJ 提交和查询远程评测结果需要联网。</p>
+    <p>以后打开现有启动器即可继续使用。同一门课导入更多比赛不必重新选择目录；另一门课使用「设置 → 切换或新建课程」。具体考试中能否使用相关资料与工具，以课程规定为准。</p>
+  </article>
+  <article><h3>更新软件，不等于更新所有旧题</h3>
+    <p>启动器会检查 Companion 和 C Exam Kit 的更新。没有更新提示时，直接选「启动」。旧版用户需重新下载 Routilet 新启动器；它仍可离线启动已安装的旧软件，两个新发行包均可用时才提示迁移。迁移不会删除课程文件、资源快照或登录状态。</p>
+    <div class="shared-diagram">
+      <div class="node shared"><strong>新版资源已下载</strong><small>应用到当前课程后</small></div><div class="arrow">↓</div>
+      <div class="two"><div class="node"><strong>新题、未改动的题</strong><small>可使用新版函数库</small></div><div class="node"><strong>已编写的旧题</strong><small>默认保留原版本</small></div></div>
+    </div>
+    <p>每道 C 题通过自己的头文件引用绑定资源版本。这样即使函数的接口或行为发生变化，写过的题也不会被贸然改变。手册按题目实际使用的版本显示，所以不同题目看到的版本可能不同。</p>
+    <p>资源下载后，启动器可预览当前课程的升级范围；也可在 Companion 的「设置 → 更新课程资源」中处理。批量更新默认只修改未改动的题，无法确认是否改过的题也会保留。需要升级旧题时可自行选择，软件先试编译，旧版本可撤销。</p>
+  </article>
+</section>
+<footer>适用版本 <strong>Accoding Companion @VERSION@</strong> · <a href="https://github.com/Routilet/accoding-companion">项目主页</a></footer>
+</main>
+<script>
+  const modules = Array.from(document.querySelectorAll("main > section"));
+  const links = Array.from(document.querySelectorAll("nav a"));
+  const controls = document.createElement("div");
+  controls.className = "pages";
+  controls.innerHTML = '<button type="button">上一页</button><span aria-live="polite"></span><button type="button">下一页</button>';
+  const [previous, next] = controls.querySelectorAll("button");
+  const slides = modules.map(module => [...module.querySelectorAll(":scope > article")]);
+  const position = controls.querySelector("span");
+  let current = -1;
+  let page = 0;
+
+  function readLocation() {
+    const [id, step] = location.hash.slice(1).split("/");
+    const module = Math.max(0, modules.findIndex(section => section.id === id));
+    const index = Number(step);
+    return { module, page: Number.isInteger(index) && index > 0 && index <= slides[module].length ? index - 1 : 0 };
+  }
+
+  function render(focus = false) {
+    const target = readLocation();
+    current = target.module;
+    page = target.page;
+    const section = modules[current];
+    const pages = slides[current];
+    modules.forEach((module, index) => { module.hidden = index !== current; });
+    pages.forEach((slide, index) => { slide.hidden = index !== page; });
+    links.forEach(link => {
+      if (link.hash === "#" + section.id) link.setAttribute("aria-current", "location");
+      else link.removeAttribute("aria-current");
+    });
+    previous.disabled = current === 0 && page === 0;
+    next.disabled = current === modules.length - 1 && page === pages.length - 1;
+    position.textContent = `模块 ${current + 1} / ${modules.length} · 第 ${page + 1} / ${pages.length} 页`;
+    section.append(controls);
+    if (focus) {
+      const heading = pages[page].querySelector("h3");
+      heading.tabIndex = -1;
+      heading.focus({ preventScroll: true });
+      section.scrollIntoView({ block: "nearest" });
+    }
+  }
+
+  function move(direction) {
+    let module = current;
+    let index = page + direction;
+    if (index >= slides[module].length) {
+      module++;
+      index = 0;
+    } else if (index < 0) {
+      module--;
+      if (module >= 0) index = slides[module].length - 1;
+    }
+    if (!modules[module]) return;
+    location.hash = modules[module].id + (index === 0 ? "" : `/${index + 1}`);
+  }
+
+  previous.onclick = () => move(-1);
+  next.onclick = () => move(1);
+  window.addEventListener("hashchange", () => render(true));
+  document.addEventListener("keydown", event => {
+    if (document.querySelector("dialog[open]") || event.altKey || event.ctrlKey || event.metaKey ||
+        event.target.closest("a, button, pre")) return;
+    if (event.key === "ArrowLeft" && !previous.disabled) { event.preventDefault(); previous.click(); }
+    if (event.key === "ArrowRight" && !next.disabled) { event.preventDefault(); next.click(); }
+  });
+  render();
+  const dialog = document.getElementById("contest-image");
+  document.getElementById("contest-preview").addEventListener("click", event => {
+    if (typeof dialog.showModal === "function") {
+      event.preventDefault();
+      dialog.showModal();
+    }
+  });
+</script>
+</html>

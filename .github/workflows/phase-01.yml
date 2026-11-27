@@ -1,0 +1,94 @@
+name: Phase 01 native verification
+
+on:
+  pull_request:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  native:
+    name: ${{ matrix.target }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - os: windows-2022
+            target: windows-amd64
+            goos: windows
+            goarch: amd64
+          - os: macos-15
+            target: darwin-arm64
+            goos: darwin
+            goarch: arm64
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 25
+    defaults:
+      run:
+        shell: bash
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "24"
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: launcher/go.mod
+          cache-dependency-path: launcher/go.sum
+      - name: Verify native runner architecture
+        run: |
+          test "$(go env GOHOSTOS)" = "${{ matrix.goos }}"
+          test "$(go env GOHOSTARCH)" = "${{ matrix.goarch }}"
+          go version
+          node --version
+          npm --version
+          mkdir -p test-logs
+      - name: Go tests including managed Node and local registry
+        working-directory: launcher
+        env:
+          ACCODING_TEST_NODE_DOWNLOAD: "1"
+          ACCODING_TEST_PUBLISHED_VERSION: ""
+          ACCODING_TEST_PUBLISHED_OBSERVER: ""
+        run: |
+          set -o pipefail
+          go test -v -count=1 ./... 2>&1 | tee ../test-logs/go-test.log
+      - name: Go vet
+        working-directory: launcher
+        run: |
+          set -o pipefail
+          go vet ./... 2>&1 | tee ../test-logs/go-vet.log
+      - name: npm dependency probe
+        run: |
+          set -o pipefail
+          node --test tests/standalone/npm-dependency-probe.test.mjs 2>&1 | tee test-logs/npm-probe.log
+      - name: Guide rendering LF and CRLF regression
+        run: |
+          set -o pipefail
+          node --test tests/standalone/render-launcher-guide.test.mjs 2>&1 | tee test-logs/guide-render.log
+      - name: Build native test bundle
+        run: bash scripts/package-launchers.sh dist
+      - name: Upload Windows test bundle
+        if: matrix.goos == 'windows'
+        uses: actions/upload-artifact@v4
+        with:
+          name: routilet-phase01-windows-amd64
+          path: dist/routilet-phase01-*-windows-amd64/
+          if-no-files-found: error
+      - name: Upload macOS test bundle
+        if: matrix.goos == 'darwin'
+        uses: actions/upload-artifact@v4
+        with:
+          name: routilet-phase01-darwin-arm64
+          path: dist/*.tar.gz
+          if-no-files-found: error
+      - name: Upload test logs
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: test-logs-${{ matrix.target }}
+          path: test-logs/
+          if-no-files-found: warn
