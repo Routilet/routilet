@@ -28,3 +28,5 @@ dialog p{white-space:pre-wrap;overflow-wrap:anywhere;line-height:1.6;margin:9px 
 @media(max-width:380px){main{padding:9px;gap:7px}.tile{width:36px;height:36px}.launch{gap:6px}.indicator{padding:3px 5px}.desc{font-size:11px}}
 
 #task-bar{grid-column:2;grid-row:3;width:100%;height:6px;margin:3px 0 0}
+
+#download-source{width:100%}#download-note{font-size:var(--ui-sm);margin:6px 0 8px;max-height:65px;overflow:auto}
