@@ -1,0 +1,17 @@
+{
+  "version": "0.1.0",
+  "source": "Routilet/ui",
+  "sourceCommit": "144a863117c051291cf8988e1d2e1fa4e0fd31f1",
+  "files": {
+    "ui/routilet.css": "25cea217f26b338eba064491b3fffff662df690f",
+    "ui/icons/sprite.svg": "d745b89befc9e20fb5d70a3ff437045e508b003c",
+    "ui/icons/LICENSE": "325e8ff0aae2dde3134c1ceed780a11d7bd8f544",
+    "ui/icons/semantics.json": "cb5e6030f7ee155cb3e16abcd4196c41cbc02d89",
+    "icons/routilet.svg": "1f92eb5439b2ed2329e0db21d817a628ba4e3236",
+    "icons/companion.svg": "7439d8c4f59ae0dd8a869c0e359377bd02de42a9",
+    "icons/observer.svg": "7b340968ab09db4228fbb660b0529f532b66b941",
+    "icons/c-exam-kit.svg": "15ef8b96d21a331c791088c7218ef925e5ba45e0",
+    "icons/accoding-adapter.svg": "cb94d161c41f9df2339daade5d1a719511d85480"
+  },
+  "algorithm": "git-blob-sha1"
+}

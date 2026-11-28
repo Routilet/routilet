@@ -23,7 +23,7 @@ async function setup(t,{installed='',available='0.2.0',releaseStatus='available'
  await page.addInitScript(({installed,available,releaseStatus,selfUpdate,launchFails,holdCheck,withAdapter})=>{
   const state={installed,available,releaseStatus,selfUpdate,launchFails,holdCheck,channel:'stable',pending:false,disabled:false,adapterInstalled:'',adapterDisabled:false,calls:[],progress:null,finish:null,held:null};
   window.fixture=state;
-  const local=()=>[{id:'companion',name:'Companion',description:'代码管理',releaseStatus:'development',installed:''},{id:'observer',name:'Observer',description:'程序运行观察',installed:state.installed,disabled:state.disabled,previous:state.installed?'0.1.9':'',releaseStatus:'unknown',available:''},...(withAdapter?[{id:'accoding-adapter',name:'Accoding Adapter',description:'Accoding 在线评测接入',component:true,installed:state.adapterInstalled,disabled:state.adapterDisabled,releaseStatus:'unknown',available:''}]:[])];
+  const local=()=>[{id:'companion',name:'Companion',description:'代码管理',releaseStatus:'development',installed:''},{id:'observer',name:'Observer',description:'程序运行观察',installed:state.installed,disabled:state.disabled,previous:state.installed?'0.1.9':'',releaseStatus:'unknown',available:''},...(withAdapter?[{id:'c-exam-kit',name:'C Exam Kit',description:'常用函数随查随用，无需重复编写',component:true,installed:'0.6.10',releaseStatus:'unknown',available:''},{id:'accoding-adapter',name:'Accoding Adapter',description:'Accoding 在线评测接入',component:true,installed:state.adapterInstalled,disabled:state.adapterDisabled,releaseStatus:'unknown',available:''}]:[])];
   const checked=()=>local().map(a=>a.id==='companion'?a:a.component?{...a,releaseStatus:a.disabled?'disabled':'available',available:a.disabled?'':'0.1.0-beta.1',update:false}:state.disabled?{...a,releaseStatus:'disabled'}:{...a,releaseStatus:state.releaseStatus,available:state.releaseStatus==='available'?state.available:'',update:!!a.installed&&a.installed!==state.available&&state.releaseStatus==='available',note:state.releaseStatus==='error'?'软件源 HTTP 503':''});
   const self=()=>({version:'0.1.2',releaseStatus:'unknown',pending:state.pending,pendingVersion:state.pending?'0.1.3':''});
   window.__bridge=async(method,...args)=>{
@@ -43,7 +43,7 @@ async function setup(t,{installed='',available='0.2.0',releaseStatus='available'
    if(method==='InstallVersion'){if(args[0]==='accoding-adapter')state.adapterInstalled=args[1];else state.installed=args[1];return}
    if(method==='Launch'){if(state.launchFails)throw Error('启动失败');return}
    if(method==='UpdateSelfVersion'){
-    state.progress={id:'routilet',active:true,cancellable:true,total:5,added:2,stage:'下载与安装'};
+    state.progress={id:'routilet',active:true,cancellable:true,total:5,added:2,stage:'下载与安装',downloadBytes:5000000,downloadTotal:20000000};
     return new Promise((resolve,reject)=>{state.finish={resolve:()=>{state.pending=true;state.progress=null;resolve()},reject}})
    }
    if(method==='Cancel'){state.progress=null;state.finish.reject(Error('context canceled'));return true}
@@ -83,7 +83,7 @@ test('menu keyboard, rollback confirmation, settings and stale channel check',as
  const more=p.getByRole('button',{name:'管理 Observer'});
  await more.click();await p.getByRole('menuitem',{name:'创建桌面快捷方式'}).waitFor();
  await p.keyboard.press('ArrowDown');await p.keyboard.press('ArrowDown');await p.keyboard.press('Enter');
- await p.getByRole('dialog',{name:'回退 Observer？'}).waitFor();
+ await p.getByRole('dialog',{name:'恢复 Observer？'}).waitFor();
  assert.match(await p.locator('#message-text').textContent(),/0\.1\.9/);
  await p.getByRole('button',{name:'取消',exact:true}).click();
  await p.getByRole('button',{name:'设置',exact:true}).click();
@@ -91,7 +91,7 @@ test('menu keyboard, rollback confirmation, settings and stale channel check',as
  await p.waitForFunction(()=>fixture.channel==='test'&&!document.querySelector('#release-channel').disabled);
  assert.equal(await p.getByRole('dialog',{name:'设置'}).isVisible(),true);
  await p.evaluate(()=>fixture.held());
- await p.getByRole('button',{name:'清理不再使用的应用版本'}).click();
+ await p.getByRole('button',{name:'清理旧版本'}).click();
  await p.waitForFunction(()=>document.querySelector('#channel-note').textContent.includes('部分文件未清理'));
  await p.getByRole('button',{name:'关闭设置'}).click();
  await p.getByRole('button',{name:'更新',exact:true}).waitFor();
@@ -102,7 +102,9 @@ test('self update uses common progress and cancel; pending survives refresh',asy
  await p.getByRole('button',{name:'更新至 v0.1.3'}).click();
  const stop=p.getByRole('button',{name:'取消',exact:true});
  await p.waitForFunction(()=>!document.querySelector('#task-cancel').disabled);
- assert.equal(await p.locator('#task-bar').getAttribute('value'),'2');
+ assert.equal(await p.locator('#task-bar').getAttribute('value'),'5000000');
+ assert.match(await p.locator('#task-detail').textContent(),/5.0 \/ 20.0 MB/);
+ await p.evaluate(()=>{fixture.progress.downloadTotal=0});await p.locator('#task-bar').waitFor({state:'hidden'});
  await stop.click();await p.waitForFunction(()=>document.querySelector('#notice').textContent.includes('已取消'));
  await p.getByRole('button',{name:'更新至 v0.1.3'}).click();
  await p.waitForFunction(()=>!document.querySelector('#task-cancel').disabled);
@@ -113,8 +115,8 @@ test('self update uses common progress and cancel; pending survives refresh',asy
 
 test('disable and enable without uninstall; data directory only in settings',async t=>{
  const p=await setup(t,{installed:'0.2.0',available:'0.2.1'});
- await p.getByRole('button',{name:'管理 Observer'}).click();await p.getByRole('menuitem',{name:'禁用',exact:true}).click();
- const disabled=p.getByRole('button',{name:'Observer 已禁用'});await disabled.waitFor();assert.equal(await disabled.isDisabled(),true);
+ await p.getByRole('button',{name:'管理 Observer'}).click();await p.getByRole('menuitem',{name:'停用',exact:true}).click();
+ const disabled=p.getByRole('button',{name:'Observer 已停用'});await disabled.waitFor();assert.equal(await disabled.isDisabled(),true);
  await p.getByRole('button',{name:'管理 Observer'}).click();await p.getByRole('menuitem',{name:'启用',exact:true}).click();
  await p.getByRole('button',{name:'Observer 打开'}).waitFor();assert.equal(await p.locator('#data').count(),0);
  await p.getByRole('button',{name:'设置',exact:true}).click();await p.getByRole('button',{name:'打开数据目录'}).click();
@@ -132,7 +134,18 @@ test('optional components are always expanded, installation keeps launcher open'
  assert.equal(await p.evaluate(()=>fixture.calls.some(c=>c[0]==='Launch'||c[0]==='Close')),false);
  await section.getByRole('button',{name:'管理 Accoding Adapter'}).click();
  assert.equal(await p.getByRole('menuitem',{name:'创建桌面快捷方式'}).count(),0);
- await p.getByRole('menuitem',{name:'禁用',exact:true}).click();
- await section.getByRole('button',{name:'Accoding Adapter 已禁用'}).waitFor();
+ await p.getByRole('menuitem',{name:'停用',exact:true}).click();
+ await section.getByRole('button',{name:'Accoding Adapter 已停用'}).waitFor();
  assert.equal(await section.isVisible(),true);
+});
+
+
+test('small window keeps operation and footer visible; catalog scrolls independently',async t=>{
+ const p=await setup(t,{selfUpdate:true,withAdapter:true});
+ await p.setViewportSize({width:360,height:320});
+ await p.getByRole('button',{name:/更新至 v/}).click();
+ await p.locator('#task').waitFor();
+ const layout=await p.evaluate(()=>({footer:document.querySelector('footer').getBoundingClientRect().bottom,task:document.querySelector('#task').getBoundingClientRect().bottom,height:innerHeight,body:document.scrollingElement.scrollHeight,catalog:document.querySelector('.catalog').clientHeight,content:document.querySelector('.catalog').scrollHeight}));
+ assert.ok(layout.footer<=layout.height&&layout.task<=layout.height);assert.ok(layout.content>=layout.catalog);assert.equal(layout.body,layout.height);
+ await p.locator('#task-cancel').waitFor();
 });

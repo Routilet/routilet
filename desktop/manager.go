@@ -26,10 +26,10 @@ const pnpmVersion = "12.22.0"
 
 type appSpec struct { ID, Name, Description, Package, Channel string }
 var catalog=[]appSpec{
- {"companion","Companion","代码管理与本地评测","@routilet/companion","latest"},
- {"observer","Observer","程序运行观察","@routilet/c-observer","latest"},
- {"c-exam-kit","C Exam Kit","C 语言资源库","@routilet/c-exam-kit","latest"},
- {"accoding-adapter","Accoding Adapter","Accoding 在线评测接入","@routilet/accoding-adapter","latest"},
+ {"companion","Companion","快速测试代码，定位输出差异","@routilet/companion","latest"},
+ {"observer","Observer","看清程序运行中的数据变化","@routilet/c-observer","latest"},
+ {"c-exam-kit","C Exam Kit","常用函数随查随用，无需重复编写","@routilet/c-exam-kit","latest"},
+ {"accoding-adapter","Accoding Adapter","在本地完成 Accoding 导题与提交","@routilet/accoding-adapter","latest"},
 }
 func(s appSpec) resource()bool{return s.ID=="c-exam-kit"}
 func(s appSpec) adapter()bool{return s.ID=="accoding-adapter"}

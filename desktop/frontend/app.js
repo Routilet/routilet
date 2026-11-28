@@ -16,8 +16,9 @@ function feedback(text,persistent=false) {
 async function report(heading,e){const {summary,raw}=errorText(e);await ask({heading,text:summary,technical:raw===summary?'':raw})}
 function appById(id){return s.apps.find(a=>a.id===id)}
 function createRow(id) {
- const row=element('div','app'),launch=element('button','launch'),tile=element('img','tile'),words=element('span','words'),name=element('span','name'),desc=element('span','desc'),indicator=element('span','indicator'),update=element('button','update','更新'),more=element('button','icon-button more','⋯');
- tile.src='/icons/'+id+'.svg';tile.alt='';words.append(name,desc);launch.append(tile,words,indicator);row.append(launch,update,more);
+ const row=element('div','app'),launch=element('button','launch'),tile=element('img','tile'),words=element('span','words'),name=element('span','name'),desc=element('span','desc'),indicator=element('span','indicator'),update=element('button','update ui-button','更新'),more=element('button','icon-button more ui-button ui-icon-button');
+ const icon=document.createElementNS('http://www.w3.org/2000/svg','svg');icon.setAttribute('class','ui-icon');icon.setAttribute('aria-hidden','true');const use=document.createElementNS('http://www.w3.org/2000/svg','use');use.setAttribute('href','/ui/icons/sprite.svg#ellipsis');icon.append(use);more.append(icon);
+ update.dataset.kind='secondary';tile.src='/icons/'+id+'.svg';tile.alt='';words.append(name,desc);launch.append(tile,words,indicator);row.append(launch,update,more);
  launch.onclick=()=>{const a=appById(id);if(!a||s.busy||!appView(a).enabled)return;void perform(a,a.installed?'launch':'install')};
  update.onclick=()=>{const a=appById(id);if(a&&!s.busy&&appView(a).update)void perform(a,'update')};
  more.setAttribute('aria-haspopup','menu');more.setAttribute('aria-expanded','false');more.onclick=()=>{const a=appById(id);if(a&&!s.busy)manage(a,more)};
@@ -53,8 +54,14 @@ function render(){
 }
 function renderTask(){
  const p=progressView(s.task,s.task?.progress);taskPanel.hidden=!p;if(!p)return;
- taskStage.textContent=p.stage;taskDetail.textContent=p.detail;taskDetail.hidden=!p.detail;
- if(p.indeterminate){taskBar.removeAttribute('value');taskBar.max=1}else{taskBar.max=p.total;taskBar.value=p.added}
+ taskStage.textContent=s.task.cancelAccepted?'正在取消…':s.task.label;taskDetail.textContent=p.stage===s.task.label?'正在处理…':p.stage;taskDetail.hidden=false;
+ const d=p.download;taskBar.hidden=!d;
+ if(d){
+  taskBar.max=d.total;taskBar.value=Math.min(d.bytes,d.total*.999);
+  const mb=n=>(n/1e6).toFixed(1);
+  taskDetail.textContent='正在下载文件 · '+mb(d.bytes)+' / '+mb(d.total)+' MB · '+Math.min(99,Math.floor(d.bytes/d.total*100))+'%';
+ }
+ 
  taskCancel.hidden=!s.task.installing;taskCancel.disabled=!p.cancellable;taskCancel.textContent=s.task.cancelAccepted?'正在取消…':'取消';
 }
 async function local(){
@@ -78,16 +85,16 @@ function manage(a,button){
  const actions=[];
  if(a.installed&&!a.disabled&&!a.preferenceError){
   if(!a.component)actions.push({label:'创建桌面快捷方式',run:()=>perform(a,'shortcut')},{separator:true});
-  actions.push({label:'修复安装',run:()=>confirmOperation(a,'repair')});
-  if(a.previous)actions.push({label:'回退至 v'+a.previous,run:()=>confirmOperation(a,'rollback')});
+  actions.push({label:'重新安装',run:()=>confirmOperation(a,'repair')});
+  if(a.previous)actions.push({label:'恢复至 v'+a.previous,run:()=>confirmOperation(a,'rollback')});
   actions.push({separator:true});
  }
- actions.push({label:a.disabled||a.preferenceError?'启用':'禁用',run:()=>perform(a,a.disabled||a.preferenceError?'enable':'disable')});
+ actions.push({label:a.disabled||a.preferenceError?'启用':'停用',run:()=>perform(a,a.disabled||a.preferenceError?'enable':'disable')});
  if(a.installed)actions.push({separator:true},{label:'卸载',danger:true,run:()=>confirmOperation(a,'uninstall')});
  openMenu(button,actions);
 }
 async function confirmOperation(a,mode){
- const labels={repair:'修复',rollback:'回退',uninstall:'卸载'};
+ const labels={repair:'重新安装',rollback:'恢复',uninstall:'卸载'};
  const texts={repair:'重新下载并安装 v'+a.installed+'，保留课程数据。',rollback:'从 v'+a.installed+' 切换到 v'+a.previous+'，保留课程数据。',uninstall:'移除已安装的 '+a.name+'，保留课程数据和运行中的版本。'};
  if(await ask({heading:labels[mode]+' '+a.name+'？',text:texts[mode],action:labels[mode],confirming:true,danger:mode==='uninstall'}))await perform(a,mode);
 }
@@ -108,7 +115,7 @@ taskCancel.onclick=async()=>{
 };
 async function perform(a,mode){
  const installing=['install','update','repair','self'].includes(mode);
- const verbs={install:'安装',update:'更新',repair:'修复',self:'更新',launch:'打开',rollback:'回退',uninstall:'卸载',shortcut:'创建快捷方式',enable:'启用',disable:'禁用'};
+ const verbs={install:'安装',update:'更新',repair:'重新安装',self:'更新',launch:'打开',rollback:'恢复',uninstall:'卸载',shortcut:'创建快捷方式',enable:'启用',disable:'停用'};
  const task=s.startTask(a.id,'正在'+verbs[mode]+' '+a.name+'…',installing);if(!task)return;
  closeMenu();feedback('');render();let operationError=null,installed=false,closing=false;
  if(installing)poll(task);
@@ -126,7 +133,7 @@ async function perform(a,mode){
    if(mode==='install')await local();
    await call('Launch',a.id);await call('Close');closing=true;s.finishTask(task);render();
   }else{
-   const done={install:'已安装',update:'已更新',repair:'已修复',rollback:'已回退',uninstall:'已卸载',shortcut:'快捷方式已创建',enable:'已启用',disable:'已禁用',self:'新版已准备就绪，退出后重新打开'};
+   const done={install:'已安装',update:'已更新',repair:'已重新安装',rollback:'已恢复',uninstall:'已卸载',shortcut:'快捷方式已创建',enable:'已启用',disable:'已停用',self:'新版已准备就绪，退出后重新打开'};
    feedback(mode==='self'?done.self:a.name+' '+done[mode],mode==='self');
   }
  }catch(e){operationError=e}
@@ -159,7 +166,7 @@ function renderSettings(){
 settings.onclick=async()=>{
  if(s.busy||settingsOpening||settingsDialog.open)return;settingsOpening=true;settingsReturn=settings;render();closeMenu();
  channelLoaded=false;channelNote.textContent='正在读取设置…';renderSettings();settingsDialog.showModal();settingsClose.focus();
- try{channel=await call('Channel');channelLoaded=true;channelNote.textContent='测试通道仅使用比正式版更新的兼容版本，不会自动降级。'}
+ try{channel=await call('Channel');channelLoaded=true;channelNote.textContent='测试版可提前体验新功能，但可能存在问题。切换通道不会自动降级已安装的应用。'}
  catch(e){channelNote.textContent='无法读取通道：'+errorText(e).summary}
  finally{settingsOpening=false;renderSettings();render()}
 };
@@ -176,8 +183,8 @@ channelSelect.onchange=async()=>{
 };
 clean.onclick=async()=>{
  if(settingsOpening||!s.beginSetting())return;renderSettings();render();channelNote.textContent='正在清理未使用的应用版本…';
- try{const r=await call('Clean');channelNote.textContent='已移除 '+r.removed+' 个版本，保留 '+r.protected+' 个受保护版本。'+(r.failed?.length?' 部分文件未清理：'+r.failed.join('；'):'')}
+ try{const r=await call('Clean');channelNote.textContent='已清理 '+r.removed+' 个旧版本，保留 '+r.protected+' 个当前、可恢复或受保护的版本。'+(r.failed?.length?' 部分文件未清理：'+r.failed.join('；'):'')}
  catch(e){channelNote.textContent='清理失败：'+errorText(e).summary}
  finally{s.endSetting();renderSettings();render();void check()}
 };
-try{await local();await call('Ready');void check()}catch(e){feedback('无法读取本地状态',true);void report('启动台初始化失败',e)}
+try{await local();await call('Ready');void check()}catch(e){feedback('无法读取本地状态',true);void report('Routilet 启动失败',e)}

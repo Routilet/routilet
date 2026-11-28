@@ -63,6 +63,7 @@ jobs:
       - name: Test state and browser interactions (test-only Chromium)
         run: |
           set -euo pipefail
+          node scripts/verify-ui.mjs
           node --test tests/interaction.test.mjs
           npm install --prefix out/ui-tools --no-save --ignore-scripts --no-audit --no-fund playwright@1.58.2
           node out/ui-tools/node_modules/playwright/cli.js install --with-deps chromium
@@ -103,6 +104,7 @@ jobs:
       - name: Resolve dependencies and test
         shell: bash
         run: |
+          node scripts/verify-ui.mjs
           go mod tidy
           git diff --exit-code -- go.mod go.sum
           go test -mod=readonly ./...
