@@ -18,8 +18,8 @@ export function appView(app) {
  if(app.disabled)return {description:base,action:'已停用',enabled:false,update:false,manage:true};
  if(installed) return {description:base,action:app.component?'已安装':'打开',enabled:!app.component,update:ready&&app.update,manage:true};
  if(app.releaseStatus==='development')return {description:base,action:'开发中',enabled:false,update:false,manage:true};
- if(ready)return {description:base+(app.localError?' · 安装记录异常':' · v'+app.available),action:app.localError?'重新安装':'安装',enabled:true,update:false,manage:true};
- return {description:base+(app.localError?' · 安装记录异常':''),action:({unknown:'待检查',unavailable:'暂未发布',error:'检查失败'})[app.releaseStatus]||'待检查',enabled:false,update:false,manage:true};
+ if(ready)return {description:base+(app.localError?' · 安装状态异常':' · v'+app.available),action:app.localError?'重新安装':'安装',enabled:true,update:false,manage:true};
+ return {description:base+(app.localError?' · 安装状态异常':''),action:({unknown:'待检查',unavailable:'暂未发布',error:'检查失败'})[app.releaseStatus]||'待检查',enabled:false,update:false,manage:true};
 }
 export function selfView(info) {
  if(info?.update&&info.available&&info.releaseStatus==='available')return {action:'update',label:'更新至 v'+info.available};
