@@ -162,7 +162,17 @@ async function exitForUpdate(){
 }
 async function openData(){if(s.busy)return;try{await call('OpenData')}catch(e){if(settingsDialog.open)channelNote.textContent='无法打开数据目录：'+errorText(e).summary;else void report('无法打开数据目录',e)}}
 refresh.onclick=()=>void check();$('#settings-data').onclick=()=>void openData();
+// Native select menus (notably macOS) may display disabled/hidden options.
+ // Remove the temporary placeholder entirely after a successful read.
+function setSettingPlaceholder(select,label){
+ let placeholder=select.querySelector('option[value=""]');
+ if(label===null){placeholder?.remove();return}
+ if(!placeholder){placeholder=document.createElement('option');placeholder.value='';placeholder.disabled=true;select.prepend(placeholder)}
+ placeholder.textContent=label;
+}
 function renderSettings(){
+ setSettingPlaceholder(channelSelect,channelLoaded?null:(channelSelect.querySelector('option[value=""]')?.textContent||'读取中'));
+ setSettingPlaceholder(downloadSelect,downloadLoaded?null:(downloadSelect.querySelector('option[value=""]')?.textContent||'读取中'));
  channelSelect.value=channelLoaded?channel:'';channelSelect.disabled=s.setting||!channelLoaded;
  downloadSelect.value=downloadLoaded?downloadSource:'';downloadSelect.disabled=s.setting||!downloadLoaded;
  settingsClose.disabled=s.setting;clean.disabled=s.setting||settingsOpening;$('#settings-data').disabled=s.setting||settingsOpening;
@@ -171,12 +181,12 @@ function renderSettings(){
 settings.onclick=async()=>{
  if(s.busy||settingsOpening||settingsDialog.open)return;settingsOpening=true;const epoch=++settingsEpoch;settingsReturn=settings;render();closeMenu();
  channelLoaded=false;downloadLoaded=false;
- channelSelect.options[0].textContent='读取中';downloadSelect.options[0].textContent='读取中';
+ setSettingPlaceholder(channelSelect,'读取中');setSettingPlaceholder(downloadSelect,'读取中');
  downloadNote.textContent='正在读取设置…';channelNote.textContent='正在读取设置…';renderSettings();settingsDialog.showModal();settingsClose.focus();
  const current=()=>epoch===settingsEpoch&&settingsDialog.open;
  async function read(method,select,note,allowed,apply,description){
   try{const value=await settingRead(method);if(!current())return;if(!allowed.includes(value))throw Error('设置值无效');apply(value);note.textContent=description()}
-  catch(e){if(!current())return;select.options[0].textContent='读取失败';note.textContent=errorText(e).summary+'；关闭设置后可重试。'}
+  catch(e){if(!current())return;setSettingPlaceholder(select,'读取失败');note.textContent=errorText(e).summary+'；关闭设置后可重试。'}
   finally{if(current())renderSettings()}
  }
  await Promise.all([
