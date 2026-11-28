@@ -4,7 +4,7 @@ let trigger=null,items=[];
 export function closeMenu(restore=false) {
  if(menu.hidden)return;
  menu.hidden=true;menu.replaceChildren();trigger?.setAttribute('aria-expanded','false');
- if(restore&&trigger?.isConnected&&!trigger.disabled)trigger.focus();trigger=null;items=[];
+ if(restore&&trigger?.isConnected&&!trigger.disabled)trigger.focus({preventScroll:true});trigger=null;items=[];
 }
 export function openMenu(button,actions) {
  if(trigger===button&&!menu.hidden){closeMenu(true);return}
@@ -14,10 +14,17 @@ export function openMenu(button,actions) {
   const b=element('button','menu-item'+(a.danger?' destructive':''),a.label);b.type='button';b.setAttribute('role','menuitem');
   b.addEventListener('click',()=>{closeMenu(true);void a.run()});menu.append(b);items.push(b);
  }
- menu.hidden=false;const rect=button.getBoundingClientRect(),width=menu.offsetWidth,height=menu.offsetHeight;
- const below=innerHeight-rect.bottom-6;const top=below>=height?rect.bottom+4:Math.max(6,rect.top-height-4);
+ menu.hidden=false;positionMenu();if(!menu.hidden)items[0]?.focus({preventScroll:true});
+}
+function positionMenu(){
+ if(menu.hidden)return;
+ if(!trigger?.isConnected||trigger.disabled){closeMenu();return}
+ const rect=trigger.getBoundingClientRect(),clip=trigger.closest('.catalog')?.getBoundingClientRect();
+ if(rect.bottom<=0||rect.top>=innerHeight||(clip&&(rect.bottom<=clip.top||rect.top>=clip.bottom))){closeMenu();return}
+ const width=menu.offsetWidth,height=menu.offsetHeight,below=innerHeight-rect.bottom-6;
+ const top=below>=height?rect.bottom+4:rect.top-height-4;
  menu.style.left=Math.max(6,Math.min(rect.right-width,innerWidth-width-6))+'px';
- menu.style.top=top+'px';items[0]?.focus();
+ menu.style.top=Math.max(6,Math.min(top,innerHeight-height-6))+'px';
 }
 menu.addEventListener('keydown',e=>{
  const i=items.indexOf(document.activeElement);
@@ -27,5 +34,5 @@ menu.addEventListener('keydown',e=>{
  }else if(e.key==='Tab')closeMenu(true);
 });
 document.addEventListener('pointerdown',e=>{if(!menu.hidden&&!menu.contains(e.target)&&!trigger?.contains(e.target))closeMenu()});
-window.addEventListener('resize',()=>closeMenu());
-document.addEventListener('scroll',e=>{if(!menu.contains(e.target))closeMenu()},true);
+window.addEventListener('resize',positionMenu);
+document.addEventListener('scroll',e=>{if(!menu.contains(e.target))positionMenu()},true);
