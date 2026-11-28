@@ -8,6 +8,9 @@ const section=$('#apps'),components=$('#components'),componentList=$('#component
 const settingsDialog=$('#settings-dialog'),channelSelect=$('#release-channel'),channelNote=$('#channel-note'),clean=$('#clean'),settingsClose=$('#settings-close');
 const taskPanel=$('#task'),taskStage=$('#task-stage'),taskDetail=$('#task-detail'),taskBar=$('#task-bar'),taskCancel=$('#task-cancel');
 const checkStatus=$('#check-status'),notice=$('#notice'),version=$('#version');
+const downloadSelect=$('#download-source'),downloadNote=$('#download-note');
+let downloadSource='auto',downloadLoaded=false;
+const downloadDescription=()=>downloadSource==='auto'?'优先使用国内镜像加速，未同步或不可用时自动回退官方源。':'始终使用 npm 官方源下载。';
 let channel='stable',channelLoaded=false,settingsOpening=false,settingsReturn=null,noticeTimer=null;
 function feedback(text,persistent=false) {
  clearTimeout(noticeTimer);notice.textContent=text;notice.hidden=!text;
@@ -159,18 +162,23 @@ async function exitForUpdate(){
 async function openData(){if(s.busy)return;try{await call('OpenData')}catch(e){if(settingsDialog.open)channelNote.textContent='无法打开数据目录：'+errorText(e).summary;else void report('无法打开数据目录',e)}}
 refresh.onclick=()=>void check();$('#settings-data').onclick=()=>void openData();
 function renderSettings(){
- channelSelect.value=channelLoaded?channel:'';channelSelect.disabled=s.setting||!channelLoaded;
- settingsClose.disabled=s.setting;clean.disabled=s.setting||settingsOpening;$('#settings-data').disabled=s.setting||settingsOpening;
+ channelSelect.value=channelLoaded?channel:'';channelSelect.disabled=s.setting||!channelLoaded||settingsOpening;
+ downloadSelect.value=downloadLoaded?downloadSource:'';downloadSelect.disabled=s.setting||!downloadLoaded||settingsOpening;
+ settingsClose.disabled=s.setting||settingsOpening;clean.disabled=s.setting||settingsOpening;$('#settings-data').disabled=s.setting||settingsOpening;
  $('#settings-version').textContent=s.self?.version?'Routilet v'+s.self.version:'Routilet';
 }
 settings.onclick=async()=>{
  if(s.busy||settingsOpening||settingsDialog.open)return;settingsOpening=true;settingsReturn=settings;render();closeMenu();
- channelLoaded=false;channelNote.textContent='正在读取设置…';renderSettings();settingsDialog.showModal();settingsClose.focus();
+ channelLoaded=false;downloadLoaded=false;downloadNote.textContent='正在读取设置…';channelNote.textContent='正在读取设置…';renderSettings();settingsDialog.showModal();settingsClose.focus();
  try{channel=await call('Channel');channelLoaded=true;channelNote.textContent='测试版可提前体验新功能，但可能存在问题。切换通道不会自动降级已安装的应用。'}
  catch(e){channelNote.textContent='无法读取通道：'+errorText(e).summary}
- finally{settingsOpening=false;renderSettings();render()}
+ finally{
+  try{downloadSource=await call('DownloadSource');downloadLoaded=true;downloadNote.textContent=downloadDescription()}
+  catch(e){downloadNote.textContent='无法读取下载源：'+errorText(e).summary}
+  settingsOpening=false;renderSettings();render()
+ }
 };
-function closeSettings(){if(s.setting)return;settingsDialog.close();settingsReturn?.focus()}
+function closeSettings(){if(s.setting||settingsOpening)return;settingsDialog.close();settingsReturn?.focus()}
 settingsClose.onclick=closeSettings;settingsDialog.addEventListener('cancel',e=>{e.preventDefault();closeSettings()});
 channelSelect.onchange=async()=>{
  const requested=channelSelect.value;if(!channelLoaded||requested===channel||!s.beginSetting()){renderSettings();return}
@@ -179,6 +187,13 @@ channelSelect.onchange=async()=>{
   await call('SetChannel',requested);channel=requested;s.resetRemote();
   channelNote.textContent='已保存。正在重新检查更新；已安装版本不会降级。';
  }catch(e){channelNote.textContent='保存失败：'+errorText(e).summary}
+ finally{s.endSetting();renderSettings();render();void check()}
+};
+downloadSelect.onchange=async()=>{
+ const requested=downloadSelect.value;if(!downloadLoaded||requested===downloadSource||!s.beginSetting()){renderSettings();return}
+ downloadNote.textContent='正在保存…';renderSettings();render();
+ try{await call('SetDownloadSource',requested);downloadSource=requested;downloadNote.textContent=downloadDescription()}
+ catch(e){downloadNote.textContent='保存失败：'+errorText(e).summary}
  finally{s.endSetting();renderSettings();render();void check()}
 };
 clean.onclick=async()=>{
