@@ -94,7 +94,7 @@ function manage(a,button){
  openMenu(button,actions);
 }
 async function confirmOperation(a,mode){
- const labels={repair:'修复',rollback:'恢复',uninstall:'卸载'};
+ const labels={repair:'重新安装',rollback:'恢复',uninstall:'卸载'};
  const texts={repair:'重新下载并安装 v'+a.installed+'，保留课程数据。',rollback:'从 v'+a.installed+' 切换到 v'+a.previous+'，保留课程数据。',uninstall:'移除已安装的 '+a.name+'，保留课程数据和运行中的版本。'};
  if(await ask({heading:labels[mode]+' '+a.name+'？',text:texts[mode],action:labels[mode],confirming:true,danger:mode==='uninstall'}))await perform(a,mode);
 }
@@ -115,7 +115,7 @@ taskCancel.onclick=async()=>{
 };
 async function perform(a,mode){
  const installing=['install','update','repair','self'].includes(mode);
- const verbs={install:'安装',update:'更新',repair:'修复',self:'更新',launch:'打开',rollback:'恢复',uninstall:'卸载',shortcut:'创建快捷方式',enable:'启用',disable:'停用'};
+ const verbs={install:'安装',update:'更新',repair:'重新安装',self:'更新',launch:'打开',rollback:'恢复',uninstall:'卸载',shortcut:'创建快捷方式',enable:'启用',disable:'停用'};
  const task=s.startTask(a.id,'正在'+verbs[mode]+' '+a.name+'…',installing);if(!task)return;
  closeMenu();feedback('');render();let operationError=null,installed=false,closing=false;
  if(installing)poll(task);
@@ -133,7 +133,7 @@ async function perform(a,mode){
    if(mode==='install')await local();
    await call('Launch',a.id);await call('Close');closing=true;s.finishTask(task);render();
   }else{
-   const done={install:'已安装',update:'已更新',repair:'已修复',rollback:'已恢复',uninstall:'已卸载',shortcut:'快捷方式已创建',enable:'已启用',disable:'已停用',self:'新版已准备就绪，退出后重新打开'};
+   const done={install:'已安装',update:'已更新',repair:'已重新安装',rollback:'已恢复',uninstall:'已卸载',shortcut:'快捷方式已创建',enable:'已启用',disable:'已停用',self:'新版已准备就绪，退出后重新打开'};
    feedback(mode==='self'?done.self:a.name+' '+done[mode],mode==='self');
   }
  }catch(e){operationError=e}
