@@ -12,7 +12,9 @@ func TestResourceLifecycle(t *testing.T){
   if e:=sealKit(snap,s,v);e!=nil{t.Fatal(e)}
   return pkg
  }
- old:=makeKit("release-old","0.6.10");makeKit("release-new","0.6.11")
+ old:=makeKit("release-old","0.6.10");newPkg:=makeKit("release-new","0.6.11")
+ if e:=os.WriteFile(filepath.Join(newPkg,"preset","reference.json"),[]byte(`{"schemaVersion":2,"version":"0.6.11","tags":["数组"],"entries":[{"id":"a","title":"a","tags":["数组"]}]}`),0600);e!=nil{t.Fatal(e)}
+ if e:=sealKit(filepath.Join(m.appDir(s),"release-new"),s,"0.6.11");e!=nil{t.Fatal(e)}
  if e:=atomicJSON(filepath.Join(m.appDir(s),"activation.json"),activation{Snapshot:"release-new",Version:"0.6.11",Previous:"release-old",PreviousVersion:"0.6.10"});e!=nil{t.Fatal(e)}
  var b bytes.Buffer
  if e:=m.exportResource(s.ID,&b);e!=nil{t.Fatal(e)}

@@ -53,8 +53,9 @@ func readKitResource(snap string,s appSpec,version string)(kitExport,error){
  state:=map[string]int{};var visit func(string)error
  visit=func(id string)error{d,ok:=deps[id];if !ok||state[id]==1{return errors.New("无效资源依赖")};if state[id]==2{return nil};state[id]=1;for _,v:=range d{if e:=visit(v);e!=nil{return e}};state[id]=2;return nil}
  for id:=range deps{if e:=visit(id);e!=nil{return k,e}}
- var reference struct{SchemaVersion int;Version string;Categories,Sections []json.RawMessage}
- if json.Unmarshal(k.Files["preset/reference.json"],&reference)!=nil||reference.SchemaVersion!=1||reference.Version!=version||len(reference.Categories)==0||len(reference.Sections)==0{return k,errors.New("Exam Kit reference schema 1 不兼容")}
+ var reference struct{SchemaVersion int;Version string;Categories,Sections,Entries []json.RawMessage; Tags []string}
+ if json.Unmarshal(k.Files["preset/reference.json"],&reference)!=nil||reference.Version!=version{return k,errors.New("Exam Kit reference 版本不兼容")}
+ switch reference.SchemaVersion{case 1:if len(reference.Categories)==0||len(reference.Sections)==0{return k,errors.New("Exam Kit reference v1 无效")};case 2:if len(reference.Entries)==0||len(reference.Entries)>4096||len(reference.Tags)==0||len(reference.Tags)>128{return k,errors.New("Exam Kit reference v2 无效")};default:return k,errors.New("Exam Kit reference schema 不兼容")}
  return k,nil
 }
 func kitDigest(k kitExport)string{b,_:=json.Marshal(k);h:=sha256.Sum256(b);return hex.EncodeToString(h[:])}
