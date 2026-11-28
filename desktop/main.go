@@ -87,7 +87,7 @@ func run() error {
  })
  if icon,e:=assets.ReadFile("frontend/icons/routilet.png");e==nil{app.SetIcon(icon)}
  d.native=app
- window:=app.Window.NewWithOptions(application.WebviewWindowOptions{Title:"Routilet",Width:420,Height:380,MinWidth:360,MinHeight:280,URL:"/"})
+ window:=app.Window.NewWithOptions(application.WebviewWindowOptions{Title:"Routilet",Width:460,Height:460,MinWidth:360,MinHeight:320,URL:"/"})
  window.RegisterHook(events.Common.WindowClosing,func(e *application.WindowEvent){if m.progress().Active{e.Cancel()}})
  return app.Run()
 }
