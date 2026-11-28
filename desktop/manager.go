@@ -98,22 +98,21 @@ func (m *Manager) remoteContext(ctx context.Context,s appSpec)(string,error){
 }
 func (m *Manager) fetchTag(ctx context.Context,s appSpec,tag string)(string,error){
  source,e:=m.downloadSource()
- auto:=e==nil&&source=="auto"
- timeout:=8*time.Second;if auto{timeout=3*time.Second}
- v,err:=m.fetchTagFrom(ctx,s,tag,false,timeout)
- if err==nil||!auto||ctx.Err()!=nil||!errors.Is(err,errRegistryUnavailable){return v,err}
- v,mirrorErr:=m.fetchTagFrom(ctx,s,tag,true,5*time.Second)
- if mirrorErr!=nil{return "",errors.Join(fmt.Errorf("官方源：%w",err),fmt.Errorf("镜像源：%w",mirrorErr))}
- return v,nil
+ if e!=nil||source!="auto"{return m.fetchTagFrom(ctx,s,tag,false,8*time.Second)}
+ v,err:=m.fetchTagFrom(ctx,s,tag,true,5*time.Second)
+ if ctx.Err()!=nil{return "",ctx.Err()}
+ if err==nil&&(v!=""||tag=="next"){return v,nil}
+ official,officialErr:=m.fetchTagFrom(ctx,s,tag,false,8*time.Second)
+ if officialErr!=nil{if err==nil{err=errors.New("镜像尚无该发行版本")};return "",errors.Join(fmt.Errorf("镜像源：%w",err),fmt.Errorf("官方源：%w",officialErr))}
+ return official,nil
 }
 func (m *Manager) fetchTagFrom(ctx context.Context,s appSpec,tag string,mirror bool,timeout time.Duration)(string,error){
  base:=registry;if mirror{base=mirrorRegistry}
  addr:=base+url.PathEscape(s.Package)+"/"+url.PathEscape(tag)
  req,err:=http.NewRequestWithContext(ctx,http.MethodGet,addr,nil);if err!=nil{return "",err}
  req.Header.Set("Accept","application/json")
- r,err:=m.downloadClient(timeout,mirror).Do(req);if err!=nil{return "",fmt.Errorf("%w: %w",errRegistryUnavailable,err)};defer r.Body.Close()
+ r,err:=m.downloadClient(timeout,mirror).Do(req);if err!=nil{return "",err};defer r.Body.Close()
  if r.StatusCode==http.StatusNotFound{return "",nil}
- if r.StatusCode>=500||r.StatusCode==429{return "",fmt.Errorf("%w: HTTP %d",errRegistryUnavailable,r.StatusCode)}
  if r.StatusCode!=200{return "",fmt.Errorf("软件源 HTTP %d",r.StatusCode)}
  var v struct{Name,Version string}
  if err=json.NewDecoder(io.LimitReader(r.Body,4<<20)).Decode(&v);err!=nil{return "",err}
@@ -273,30 +272,17 @@ func (m *Manager) installExpected(id string,repair bool,expected string)error{
 }
 func (m *Manager) installPackage(snap,pkg,version string)error{return m.installPackageContext(context.Background(),nil,snap,pkg,version)}
 func (m *Manager) installPackageContext(ctx context.Context,job *installJob,snap,pkg,version string)error{
- dependency:=version
- var accelerationErr error
- // Local test/repair fixtures keep their original local dependency path.
- // Only official, exact registry versions are eligible for mirror acceleration.
- source,sourceErr:=m.downloadSource()
- if sourceErr==nil&&source=="auto"&&validRelease(version){
-  archive,mirrorErr:=m.verifiedMirrorArchive(ctx,job,snap,pkg,version)
-  if ctx.Err()!=nil{return ctx.Err()}
-  if mirrorErr==nil{
-   defer os.Remove(archive)
-   dependency="file:./"+mirrorArchive
-   if job!=nil{job.stage("正在安装已验证的文件…")}
-  }else{
-   accelerationErr=mirrorErr
-   if job!=nil{job.stage("加速源暂不可用，正在使用官方源下载…")}
-  }
- }
- b,err:=json.Marshal(map[string]any{"name":"routilet-managed-install","private":true,"dependencies":map[string]string{pkg:dependency}})
+ b,err:=json.Marshal(map[string]any{"name":"routilet-managed-install","private":true,"dependencies":map[string]string{pkg:version}})
  if err!=nil{return err}
  if err=os.WriteFile(filepath.Join(snap,"package.json"),b,0600);err!=nil{return err}
  store,err:=prepareNativeInstall(snap,m.root);if err!=nil{return err}
- _,err=m.pnpmContext(ctx,job,snap,"install","--prod","--ignore-scripts","--no-frozen-lockfile","--registry="+registry,"--store-dir="+store,"--reporter=append-only")
- if err!=nil&&accelerationErr!=nil&&ctx.Err()==nil{return errors.Join(fmt.Errorf("加速源：%w",accelerationErr),fmt.Errorf("官方源：%w",err))}
- return err
+ install:=func(reg string)error{
+  _,e:=m.pnpmContext(ctx,job,snap,"install","--prod","--ignore-scripts","--no-frozen-lockfile","--registry="+reg,"--store-dir="+store,"--reporter=append-only","--fetch-retries=1","--fetch-retry-mintimeout=1000","--fetch-retry-maxtimeout=3000","--fetch-timeout=30000")
+  return e
+ }
+ source,sourceErr:=m.downloadSource()
+ if sourceErr!=nil||source!="auto"||!validRelease(version){return install(registry)}
+ return installFromSources(ctx,job,snap,install)
 }
 func (m *Manager) launch(id string)error{
  return m.launchWith(id,m.spawnSupervisor)
