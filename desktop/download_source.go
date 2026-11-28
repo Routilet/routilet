@@ -2,13 +2,9 @@ package main
 
 import (
  "context"
- "crypto/sha512"
- "crypto/subtle"
- "encoding/base64"
  "encoding/json"
  "errors"
  "fmt"
- "io"
  "net/http"
  "net/url"
  "os"
@@ -18,9 +14,6 @@ import (
 )
 
 const mirrorRegistry = "https://registry.npmmirror.com/"
-const maxMirrorBytes int64 = 512 << 20
-const mirrorArchive = "verified-download.tgz"
-var errRegistryUnavailable=errors.New("软件源暂不可达")
 
 type downloadSettings struct { Source string `json:"source"` }
 func validDownloadSource(s string) bool { return s=="auto" || s=="official" }
@@ -41,26 +34,22 @@ func(m *Manager) setDownloadSource(source string)error{
  return atomicJSON(filepath.Join(m.root,"download-source.json"),downloadSettings{Source:source})
 }
 
-type tarballMetadata struct {
- Name string `json:"name"`
- Version string `json:"version"`
- Dist struct{
-  Integrity string `json:"integrity"`
-  Tarball string `json:"tarball"`
- } `json:"dist"`
- // Keep the current native, self-contained package contract. Future
- // dependency-bearing distributions use the normal official pnpm path.
- Dependencies map[string]string `json:"dependencies"`
- OptionalDependencies map[string]string `json:"optionalDependencies"`
- PeerDependencies map[string]string `json:"peerDependencies"`
-}
-func sha512Integrity(s string)([]byte,error){
- for _,part:=range strings.Fields(s){
-  if !strings.HasPrefix(part,"sha512-"){continue}
-  raw,e:=base64.StdEncoding.DecodeString(strings.TrimPrefix(part,"sha512-"))
-  if e==nil&&len(raw)==sha512.Size{return raw,nil}
+// pnpm owns resolution, caching and integrity checks. No extra official
+// metadata request is needed when the selected mirror works.
+func installFromSources(ctx context.Context,job *installJob,snap string,install func(string)error)error{
+ if e:=ctx.Err();e!=nil{return e}
+ if job!=nil{job.stage("使用镜像源下载与安装")}
+ mirrorErr:=install(mirrorRegistry)
+ if mirrorErr==nil{return nil}
+ if e:=ctx.Err();e!=nil{return e}
+ // Only the newly created candidate snapshot is touched. A failed attempt
+ // must not leave a registry-pinned lockfile or partially linked modules.
+ for _,name:=range []string{"node_modules","pnpm-lock.yaml"}{
+  if e:=os.RemoveAll(filepath.Join(snap,name));e!=nil{return errors.Join(mirrorErr,e)}
  }
- return nil,errors.New("缺少有效 SHA-512 完整性信息")
+ if job!=nil{job.stage("镜像不可用，切换官方源")}
+ if e:=install(registry);e!=nil{return errors.Join(fmt.Errorf("镜像源：%w",mirrorErr),fmt.Errorf("官方源：%w",e))}
+ return nil
 }
 func allowedDownloadURL(u *url.URL,mirror bool)bool{
  if u==nil||u.Scheme!="https"||u.User!=nil||u.Fragment!=""||u.Port()!=""{return false}
@@ -69,74 +58,11 @@ func allowedDownloadURL(u *url.URL,mirror bool)bool{
  return host=="registry.npmjs.org"
 }
 func(m *Manager) downloadClient(timeout time.Duration,mirror bool)*http.Client{
- c:=http.Client{}
+ c:=http.Client{Timeout:timeout}
  if m.client!=nil{c.Transport=m.client.Transport}
- c.Timeout=timeout
  c.CheckRedirect=func(req *http.Request,via []*http.Request)error{
-  if len(via)>=5||!allowedDownloadURL(req.URL,mirror){return errors.New("下载重定向不受信任")}
+  if len(via)>=5||!allowedDownloadURL(req.URL,mirror){return errors.New("软件源重定向无效")}
   return nil
  }
  return &c
-}
-func(m *Manager) tarballInfo(ctx context.Context,pkg,version string,mirror bool)(tarballMetadata,error){
- var v tarballMetadata
- base,timeout:=registry,3*time.Second
- if mirror{base,timeout=mirrorRegistry,3*time.Second}
- req,e:=http.NewRequestWithContext(ctx,http.MethodGet,base+url.PathEscape(pkg)+"/"+url.PathEscape(version),nil);if e!=nil{return v,e}
- req.Header.Set("Accept","application/json")
- resp,e:=m.downloadClient(timeout,mirror).Do(req);if e!=nil{return v,fmt.Errorf("%w: %w",errRegistryUnavailable,e)};defer resp.Body.Close()
- if resp.StatusCode>=500||resp.StatusCode==429{return v,fmt.Errorf("%w: HTTP %d",errRegistryUnavailable,resp.StatusCode)}
- if resp.StatusCode!=http.StatusOK{return v,fmt.Errorf("软件源 HTTP %d",resp.StatusCode)}
- if e=json.NewDecoder(io.LimitReader(resp.Body,4<<20)).Decode(&v);e!=nil{return v,e}
- if v.Name!=pkg||v.Version!=version{return v,errors.New("软件包身份或版本不一致")}
- return v,nil
-}
-func(j *installJob) mirrorProgress(n,total int64){
- if j==nil{return}
- j.mu.Lock();defer j.mu.Unlock()
- if !j.p.Cancelled&&total>0&&n>=0&&n<=total{j.p.DownloadBytes=n;j.p.DownloadTotal=total}
-}
-type mirrorCounter struct { job *installJob; n,total int64 }
-func(w *mirrorCounter) Write(p []byte)(int,error){
- w.n+=int64(len(p));w.job.mirrorProgress(w.n,w.total);return len(p),nil
-}
-
-// Prefer official SHA-512. In auto mode only, network failure permits the
-// configured HTTPS mirror as the metadata authority. Never ignore an official
-// hash mismatch, invalid response or explicit missing release.
-func(m *Manager) verifiedMirrorArchive(ctx context.Context,job *installJob,snap,pkg,version string)(string,error){
- official,officialErr:=m.tarballInfo(ctx,pkg,version,false)
- if ctx.Err()!=nil{return "",ctx.Err()}
- if officialErr!=nil&&!errors.Is(officialErr,errRegistryUnavailable){return "",officialErr}
- var want []byte
- if officialErr==nil{
-  if len(official.Dependencies)+len(official.OptionalDependencies)+len(official.PeerDependencies)!=0{return "",errors.New("非独立软件包，使用官方源")}
-  var e error;want,e=sha512Integrity(official.Dist.Integrity);if e!=nil{return "",e}
- }
- mirror,e:=m.tarballInfo(ctx,pkg,version,true);if e!=nil{return "",e}
- if len(mirror.Dependencies)+len(mirror.OptionalDependencies)+len(mirror.PeerDependencies)!=0{return "",errors.New("镜像软件包包含运行依赖")}
- got,e:=sha512Integrity(mirror.Dist.Integrity);if e!=nil{return "",e}
- if officialErr==nil&&subtle.ConstantTimeCompare(want,got)!=1{return "",errors.New("镜像尚未同步或完整性信息不一致")}
- if officialErr!=nil{want=got}
- u,e:=url.Parse(mirror.Dist.Tarball);if e!=nil||!allowedDownloadURL(u,true){return "",errors.New("镜像下载地址不受信任")}
- req,e:=http.NewRequestWithContext(ctx,http.MethodGet,u.String(),nil);if e!=nil{return "",e}
- req.Header.Set("Accept-Encoding","identity")
- if job!=nil{if officialErr!=nil{job.stage("官方源不可达，使用镜像源下载…")}else{job.stage("正在使用加速源下载…")}}
- resp,e:=m.downloadClient(2*time.Minute,true).Do(req);if e!=nil{return "",e};defer resp.Body.Close()
- if resp.StatusCode!=http.StatusOK{return "",fmt.Errorf("加速源 HTTP %d",resp.StatusCode)}
- if resp.ContentLength>maxMirrorBytes{return "",errors.New("加速下载文件过大")}
- file:=filepath.Join(snap,mirrorArchive)
- f,e:=os.OpenFile(file,os.O_WRONLY|os.O_CREATE|os.O_EXCL,0600);if e!=nil{return "",e}
- keep:=false;defer func(){f.Close();if !keep{os.Remove(file)}}()
- h:=sha512.New()
- counter:=&mirrorCounter{job:job,total:resp.ContentLength}
- job.mirrorProgress(0,resp.ContentLength)
- n,e:=io.Copy(io.MultiWriter(f,h,counter),io.LimitReader(resp.Body,maxMirrorBytes+1))
- if e!=nil{return "",e}
- if n>maxMirrorBytes||resp.ContentLength>=0&&n!=resp.ContentLength{return "",errors.New("加速下载大小不符")}
- if subtle.ConstantTimeCompare(want,h.Sum(nil))!=1{return "",errors.New("加速下载完整性校验失败")}
- if e=f.Close();e!=nil{return "",e}
- if e=ctx.Err();e!=nil{return "",e}
- keep=true
- return file,nil
 }
