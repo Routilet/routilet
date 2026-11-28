@@ -5,7 +5,7 @@
 <header><div class="brand"><img src="/icons/routilet.svg" alt="" width="26" height="26"><h1>Routilet</h1></div><button id="refresh" class="icon-button ui-button ui-icon-button" title="检查更新" aria-label="检查更新"><svg class="ui-icon" data-size="20" aria-hidden="true"><use href="/ui/icons/sprite.svg#refresh-cw"/></svg></button></header>
 <div class="catalog"><section id="apps" aria-label="应用"></section>
 <section id="components" aria-labelledby="components-title" hidden><h2 id="components-title">功能组件</h2><div id="component-list"></div></section></div>
-<section id="task" class="task" hidden aria-label="当前操作"><div class="task-head"><span id="task-stage" role="status"></span><button id="task-cancel" class="small-button ui-button">取消</button></div><span class="task-spinner" aria-hidden="true"></span><span id="task-detail" class="muted"></span></section>
+<section id="task" class="task" hidden aria-label="当前操作"><div class="task-head"><span id="task-stage" role="status"></span><button id="task-cancel" class="small-button ui-button">取消</button></div><span class="task-spinner" aria-hidden="true"></span><progress id="task-bar" hidden aria-label="当前下载文件进度"></progress><span id="task-detail" class="muted"></span></section>
 <div id="notice" role="status" hidden></div>
 <footer><div class="footer-meta"><span id="version"></span><button id="check-status" class="plain" disabled>尚未检查更新</button></div><div class="footer-actions"><button id="self-action" class="update ui-button" data-kind="secondary" hidden></button><button id="settings" class="icon-button ui-button ui-icon-button" title="设置" aria-label="设置"><svg class="ui-icon" data-size="20" aria-hidden="true"><use href="/ui/icons/sprite.svg#settings"/></svg></button></div></footer>
 </main>
