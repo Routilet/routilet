@@ -14,8 +14,8 @@ export function mergeSelf(previous, local) {
 export function appView(app) {
  const installed=!!app.installed,ready=app.releaseStatus==='available'&&!!app.available;
  const base=app.description+(installed?' · v'+app.installed:'');
- if(app.preferenceError)return {description:base,action:'设置异常',enabled:false,update:false,manage:true};
- if(app.disabled)return {description:base,action:'已禁用',enabled:false,update:false,manage:true};
+ if(app.preferenceError)return {description:base,action:'应用设置异常',enabled:false,update:false,manage:true};
+ if(app.disabled)return {description:base,action:'已停用',enabled:false,update:false,manage:true};
  if(installed) return {description:base,action:app.component?'已安装':'打开',enabled:!app.component,update:ready&&app.update,manage:true};
  if(app.releaseStatus==='development')return {description:base,action:'开发中',enabled:false,update:false,manage:true};
  if(ready)return {description:base+(app.localError?' · 安装记录异常':' · v'+app.available),action:app.localError?'重新安装':'安装',enabled:true,update:false,manage:true};
@@ -39,7 +39,8 @@ export function progressView(task,p){
  if(!task)return null;
  if(!task.installing)return {stage:task.label,indeterminate:true,cancellable:false,detail:''};
  const valid=p?.active&&p.id===task.id;
- const stage=task.cancelAccepted?'正在取消…':valid?p.stage||task.label:task.label;
+ const phases={'检查版本':'正在检查版本…','准备安装':'正在准备…','解析与下载':'正在下载安装文件…','下载与安装':'正在下载安装文件…','校验应用':'正在验证安装文件…','激活版本':'正在完成安装…'};
+ const stage=task.cancelAccepted?'正在取消…':valid?(phases[p.stage]||p.stage||task.label):task.label;
  const total=valid&&p.total>0?p.total:0;
  const added=total?Math.min(Math.max(p.added||0,0),total):0;
  return {stage,indeterminate:!total,total,added,cancellable:valid&&p.cancellable&&!task.cancelRequested&&!task.cancelAccepted,
