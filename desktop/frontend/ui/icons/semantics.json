@@ -1,0 +1,32 @@
+{
+  "upstream": "https://github.com/lucide-icons/lucide/tree/0.456.0",
+  "version": "0.456.0",
+  "icons": {
+    "folder-open": "打开工作区",
+    "file-code": "源代码",
+    "square-pen": "打开编辑器",
+    "book-open": "函数手册",
+    "play": "运行",
+    "square": "停止",
+    "eye": "观察",
+    "send": "提交",
+    "copy": "复制",
+    "search": "搜索",
+    "refresh-cw": "刷新或更新",
+    "download": "导入",
+    "settings": "设置",
+    "ellipsis": "更多操作",
+    "plus": "添加",
+    "trash-2": "删除",
+    "circle-check": "成功",
+    "circle-x": "失败",
+    "triangle-alert": "警告",
+    "clock": "等待",
+    "chevron-down": "下拉",
+    "external-link": "打开外部链接",
+    "user-round": "账号",
+    "x": "关闭",
+    "check": "通过标记",
+    "unlink": "取消关联"
+  }
+}
