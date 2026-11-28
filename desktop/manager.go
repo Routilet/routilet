@@ -137,17 +137,22 @@ func (m *Manager) list()[]AppState{
 }
 func (m *Manager) check()[]AppState{
  out:=m.list()
+ var wg sync.WaitGroup
  for i,s:=range catalog{
   if s.Package==""||out[i].Disabled||out[i].PreferenceError!=""{continue}
-  v,err:=m.remote(s)
-  if err!=nil{
-   out[i].Note=err.Error()
-   if errors.Is(err,errNoRelease){out[i].ReleaseStatus="unavailable"}else{out[i].ReleaseStatus="error"}
-   continue
-  }
-  out[i].ReleaseStatus="available";out[i].Available=v
-  out[i].Update=out[i].Installed!=""&&newer(v,out[i].Installed)
+  wg.Add(1)
+  go func(i int,s appSpec){defer wg.Done()
+   v,err:=m.remote(s)
+   if err!=nil{
+    out[i].Note=err.Error()
+    if errors.Is(err,errNoRelease){out[i].ReleaseStatus="unavailable"}else{out[i].ReleaseStatus="error"}
+    return
+   }
+   out[i].ReleaseStatus="available";out[i].Available=v
+   out[i].Update=out[i].Installed!=""&&newer(v,out[i].Installed)
+  }(i,s)
  }
+ wg.Wait()
  return out
 }
 // SemVer precedence: compare numeric strings without machine-integer overflow;
