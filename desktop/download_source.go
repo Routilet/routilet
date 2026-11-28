@@ -20,6 +20,7 @@ import (
 const mirrorRegistry = "https://registry.npmmirror.com/"
 const maxMirrorBytes int64 = 512 << 20
 const mirrorArchive = "verified-download.tgz"
+var errRegistryUnavailable=errors.New("软件源暂不可达")
 
 type downloadSettings struct { Source string `json:"source"` }
 func validDownloadSource(s string) bool { return s=="auto" || s=="official" }
@@ -79,11 +80,12 @@ func(m *Manager) downloadClient(timeout time.Duration,mirror bool)*http.Client{
 }
 func(m *Manager) tarballInfo(ctx context.Context,pkg,version string,mirror bool)(tarballMetadata,error){
  var v tarballMetadata
- base,timeout:=registry,8*time.Second
+ base,timeout:=registry,3*time.Second
  if mirror{base,timeout=mirrorRegistry,3*time.Second}
  req,e:=http.NewRequestWithContext(ctx,http.MethodGet,base+url.PathEscape(pkg)+"/"+url.PathEscape(version),nil);if e!=nil{return v,e}
  req.Header.Set("Accept","application/json")
- resp,e:=m.downloadClient(timeout,mirror).Do(req);if e!=nil{return v,e};defer resp.Body.Close()
+ resp,e:=m.downloadClient(timeout,mirror).Do(req);if e!=nil{return v,fmt.Errorf("%w: %w",errRegistryUnavailable,e)};defer resp.Body.Close()
+ if resp.StatusCode>=500||resp.StatusCode==429{return v,fmt.Errorf("%w: HTTP %d",errRegistryUnavailable,resp.StatusCode)}
  if resp.StatusCode!=http.StatusOK{return v,fmt.Errorf("软件源 HTTP %d",resp.StatusCode)}
  if e=json.NewDecoder(io.LimitReader(resp.Body,4<<20)).Decode(&v);e!=nil{return v,e}
  if v.Name!=pkg||v.Version!=version{return v,errors.New("软件包身份或版本不一致")}
@@ -99,19 +101,27 @@ func(w *mirrorCounter) Write(p []byte)(int,error){
  w.n+=int64(len(p));w.job.mirrorProgress(w.n,w.total);return len(p),nil
 }
 
-// Download only a tarball whose hash is pinned by the official registry.
-// Never give pnpm an unverified mirror archive or a mirror registry.
+// Prefer official SHA-512. In auto mode only, network failure permits the
+// configured HTTPS mirror as the metadata authority. Never ignore an official
+// hash mismatch, invalid response or explicit missing release.
 func(m *Manager) verifiedMirrorArchive(ctx context.Context,job *installJob,snap,pkg,version string)(string,error){
- official,e:=m.tarballInfo(ctx,pkg,version,false);if e!=nil{return "",e}
- if len(official.Dependencies)+len(official.OptionalDependencies)+len(official.PeerDependencies)!=0{return "",errors.New("非独立软件包，使用官方源")}
- want,e:=sha512Integrity(official.Dist.Integrity);if e!=nil{return "",e}
+ official,officialErr:=m.tarballInfo(ctx,pkg,version,false)
+ if ctx.Err()!=nil{return "",ctx.Err()}
+ if officialErr!=nil&&!errors.Is(officialErr,errRegistryUnavailable){return "",officialErr}
+ var want []byte
+ if officialErr==nil{
+  if len(official.Dependencies)+len(official.OptionalDependencies)+len(official.PeerDependencies)!=0{return "",errors.New("非独立软件包，使用官方源")}
+  var e error;want,e=sha512Integrity(official.Dist.Integrity);if e!=nil{return "",e}
+ }
  mirror,e:=m.tarballInfo(ctx,pkg,version,true);if e!=nil{return "",e}
- got,e:=sha512Integrity(mirror.Dist.Integrity)
- if e!=nil||subtle.ConstantTimeCompare(want,got)!=1{return "",errors.New("镜像尚未同步或完整性信息不一致")}
+ if len(mirror.Dependencies)+len(mirror.OptionalDependencies)+len(mirror.PeerDependencies)!=0{return "",errors.New("镜像软件包包含运行依赖")}
+ got,e:=sha512Integrity(mirror.Dist.Integrity);if e!=nil{return "",e}
+ if officialErr==nil&&subtle.ConstantTimeCompare(want,got)!=1{return "",errors.New("镜像尚未同步或完整性信息不一致")}
+ if officialErr!=nil{want=got}
  u,e:=url.Parse(mirror.Dist.Tarball);if e!=nil||!allowedDownloadURL(u,true){return "",errors.New("镜像下载地址不受信任")}
  req,e:=http.NewRequestWithContext(ctx,http.MethodGet,u.String(),nil);if e!=nil{return "",e}
  req.Header.Set("Accept-Encoding","identity")
- if job!=nil{job.stage("正在使用加速源下载…")}
+ if job!=nil{if officialErr!=nil{job.stage("官方源不可达，使用镜像源下载…")}else{job.stage("正在使用加速源下载…")}}
  resp,e:=m.downloadClient(2*time.Minute,true).Do(req);if e!=nil{return "",e};defer resp.Body.Close()
  if resp.StatusCode!=http.StatusOK{return "",fmt.Errorf("加速源 HTTP %d",resp.StatusCode)}
  if resp.ContentLength>maxMirrorBytes{return "",errors.New("加速下载文件过大")}
