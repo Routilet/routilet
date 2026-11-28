@@ -35,6 +35,8 @@ func (d *Desktop) SelfInfo() SelfInfo{return d.manager.selfInfo()}
 func (d *Desktop) SelfLocal() SelfInfo{return d.manager.selfLocal()}
 func (d *Desktop) Channel()(string,error){return d.manager.channel()}
 func (d *Desktop) SetChannel(channel string)error{return d.manager.setChannel(channel)}
+func (d *Desktop) DownloadSource()(string,error){return d.manager.downloadSource()}
+func (d *Desktop) SetDownloadSource(source string)error{return d.manager.setDownloadSource(source)}
 func (d *Desktop) SetDisabled(id string,disabled bool)error{return d.manager.setDisabled(id,disabled)}
 func (d *Desktop) UpdateSelf() error{return d.manager.install("routilet")}
 func (d *Desktop) UpdateSelfVersion(version string)error{return d.manager.installExpected("routilet",false,version)}

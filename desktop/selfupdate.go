@@ -4,6 +4,7 @@ import(
  "context"
  "errors"
  "fmt"
+ "io"
  "os"
  "os/exec"
  "path/filepath"
@@ -93,7 +94,17 @@ func selfUpdateTest(tarball,version string)error{
  dir:=m.appDir(managerSpec);if e=os.MkdirAll(dir,0700);e!=nil{return e}
  snap,e:=os.MkdirTemp(dir,"release-");if e!=nil{return e}
  abs,e:=filepath.Abs(tarball);if e!=nil{return e}
- if e=m.installPackage(snap,managerSpec.Package,"file:"+filepath.ToSlash(abs));e!=nil{return e}
+ // Exercise the same relative local archive dependency used by the verified
+ // mirror path, with the real bundled pnpm on each native CI runner.
+ archive:=filepath.Join(snap,mirrorArchive)
+ src,e:=os.Open(abs);if e!=nil{return e}
+ dst,e:=os.OpenFile(archive,os.O_WRONLY|os.O_CREATE|os.O_EXCL,0600)
+ if e!=nil{src.Close();return e}
+ _,copyErr:=io.Copy(dst,src)
+ closeErr:=dst.Close();src.Close()
+ if copyErr!=nil{return copyErr};if closeErr!=nil{return closeErr}
+ if e=m.installPackage(snap,managerSpec.Package,"file:./"+mirrorArchive);e!=nil{return e}
+ if e=os.Remove(archive);e!=nil{return e}
  entry,e:=nativeEntry(snap,managerSpec,version);if e!=nil{return e}
  if e=probeManager(context.Background(),entry,version);e!=nil{return e}
  a:=activation{Snapshot:filepath.Base(snap),Version:version}

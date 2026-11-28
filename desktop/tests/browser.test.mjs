@@ -21,7 +21,7 @@ async function setup(t,{installed='',available='0.2.0',releaseStatus='available'
  t.after(async()=>{await browser.close();await new Promise(r=>server.close(r))});
  const page=await browser.newPage({viewport:{width:420,height:300}});const errors=[];page.on('pageerror',e=>errors.push(e.message));
  await page.addInitScript(({installed,available,releaseStatus,selfUpdate,launchFails,holdCheck,withAdapter})=>{
-  const state={installed,available,releaseStatus,selfUpdate,launchFails,holdCheck,channel:'stable',pending:false,disabled:false,adapterInstalled:'',adapterDisabled:false,calls:[],progress:null,finish:null,held:null};
+  const state={installed,available,releaseStatus,selfUpdate,launchFails,holdCheck,channel:'stable',downloadSource:'auto',pending:false,disabled:false,adapterInstalled:'',adapterDisabled:false,calls:[],progress:null,finish:null,held:null};
   window.fixture=state;
   const local=()=>[{id:'companion',name:'Companion',description:'代码管理',releaseStatus:'development',installed:''},{id:'observer',name:'Observer',description:'程序运行观察',installed:state.installed,disabled:state.disabled,previous:state.installed?'0.1.9':'',releaseStatus:'unknown',available:''},...(withAdapter?[{id:'c-exam-kit',name:'C Exam Kit',description:'常用函数随查随用，无需重复编写',component:true,installed:'0.6.10',releaseStatus:'unknown',available:''},{id:'accoding-adapter',name:'Accoding Adapter',description:'Accoding 在线评测接入',component:true,installed:state.adapterInstalled,disabled:state.adapterDisabled,releaseStatus:'unknown',available:''}]:[])];
   const checked=()=>local().map(a=>a.id==='companion'?a:a.component?{...a,releaseStatus:a.disabled?'disabled':'available',available:a.disabled?'':'0.1.0-beta.1',update:false}:state.disabled?{...a,releaseStatus:'disabled'}:{...a,releaseStatus:state.releaseStatus,available:state.releaseStatus==='available'?state.available:'',update:!!a.installed&&a.installed!==state.available&&state.releaseStatus==='available',note:state.releaseStatus==='error'?'软件源 HTTP 503':''});
@@ -38,6 +38,8 @@ async function setup(t,{installed='',available='0.2.0',releaseStatus='available'
    if(method==='SelfInfo')return {...self(),releaseStatus:'available',available:'0.1.3',update:state.selfUpdate&&!state.pending};
    if(method==='SetDisabled'){if(args[0]==='accoding-adapter')state.adapterDisabled=args[1];else state.disabled=args[1];return}
    if(method==='Channel')return state.channel;
+   if(method==='DownloadSource')return state.downloadSource;
+   if(method==='SetDownloadSource'){state.downloadSource=args[0];return}
    if(method==='SetChannel'){state.channel=args[0];state.releaseStatus='available';return}
    if(method==='Progress')return state.progress||{};
    if(method==='InstallVersion'){if(args[0]==='accoding-adapter')state.adapterInstalled=args[1];else state.installed=args[1];return}
@@ -148,4 +150,19 @@ test('small window keeps operation and footer visible; catalog scrolls independe
  const layout=await p.evaluate(()=>({footer:document.querySelector('footer').getBoundingClientRect().bottom,task:document.querySelector('#task').getBoundingClientRect().bottom,height:innerHeight,body:document.scrollingElement.scrollHeight,catalog:document.querySelector('.catalog').clientHeight,content:document.querySelector('.catalog').scrollHeight}));
  assert.ok(layout.footer<=layout.height&&layout.task<=layout.height);assert.ok(layout.content>=layout.catalog);assert.equal(layout.body,layout.height);
  await p.locator('#task-cancel').waitFor();
+});
+
+test('download source setting is persisted separately from release channel',async t=>{
+ const p=await setup(t);
+ await p.getByRole('button',{name:'设置',exact:true}).click();
+ const source=p.locator('#download-source');
+ await source.waitFor();await p.waitForFunction(()=>!document.querySelector('#download-source').disabled);
+ assert.equal(await source.inputValue(),'auto');
+ await source.selectOption('official');
+ await p.waitForFunction(()=>fixture.downloadSource==='official'&&!document.querySelector('#download-source').disabled);
+ assert.equal(await p.locator('#release-channel').inputValue(),'stable');
+ await p.getByRole('button',{name:'关闭设置'}).click();
+ await p.getByRole('button',{name:'设置',exact:true}).click();
+ await p.waitForFunction(()=>!document.querySelector('#download-source').disabled);
+ assert.equal(await source.inputValue(),'official');
 });
