@@ -89,7 +89,7 @@ test('menu keyboard, rollback confirmation, settings and stale channel check',as
  assert.match(await p.locator('#message-text').textContent(),/0\.1\.9/);
  await p.getByRole('button',{name:'取消',exact:true}).click();
  await p.getByRole('button',{name:'设置',exact:true}).click();
- await p.locator('#release-channel').selectOption('test');
+ await p.locator('[data-select-for="release-channel"]').click();await p.getByRole('option',{name:'测试版',exact:true}).click();
  await p.waitForFunction(()=>fixture.channel==='test'&&!document.querySelector('#release-channel').disabled);
  assert.equal(await p.getByRole('dialog',{name:'设置'}).isVisible(),true);
  await p.evaluate(()=>fixture.held());
@@ -160,7 +160,7 @@ test('download source setting is persisted separately from release channel',asyn
  assert.equal(await source.inputValue(),'auto');
  assert.deepEqual(await source.locator('option').evaluateAll(a=>a.map(o=>o.value)),['auto','official']);
  assert.deepEqual(await p.locator('#release-channel option').evaluateAll(a=>a.map(o=>o.value)),['stable','test']);
- await source.selectOption('official');
+ const trigger=p.locator('[data-select-for="download-source"]');await trigger.focus();await trigger.press('ArrowDown');await trigger.press('End');await trigger.press('Enter');
  await p.waitForFunction(()=>fixture.downloadSource==='official'&&!document.querySelector('#download-source').disabled);
  assert.equal(await p.locator('#release-channel').inputValue(),'stable');
  await p.getByRole('button',{name:'关闭设置'}).click();
@@ -200,3 +200,5 @@ test('settings placeholder is recreated only during a pending or failed read',as
  assert.equal(await p.locator('#download-source').isDisabled(),true);
  await p.getByRole('button',{name:'关闭设置'}).click();
 });
+
+test('shared selector supports keyboard, cancellation and native model synchronization',async t=>{const p=await setup(t);await p.getByRole('button',{name:'设置',exact:true}).click();const trigger=p.locator('[data-select-for="download-source"]');await trigger.waitFor();await p.waitForFunction(()=>!document.querySelector('[data-select-for="download-source"]').disabled);await trigger.click();await p.getByRole('listbox',{name:'下载源'}).waitFor();assert.equal(await p.getByRole('option',{name:'自动选择（推荐）'}).getAttribute('aria-selected'),'true');await trigger.press('End');await trigger.press('Escape');assert.equal(await p.getByRole('listbox',{name:'下载源'}).isVisible(),false);assert.equal(await p.locator('#download-source').inputValue(),'auto');await trigger.click();await p.getByRole('option',{name:'npm 官方源'}).click();await p.waitForFunction(()=>fixture.downloadSource==='official'&&!document.querySelector('#download-source').disabled);assert.match(await trigger.textContent(),/npm 官方源/);});
