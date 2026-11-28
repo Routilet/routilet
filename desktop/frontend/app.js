@@ -11,7 +11,8 @@ const checkStatus=$('#check-status'),notice=$('#notice'),version=$('#version');
 const downloadSelect=$('#download-source'),downloadNote=$('#download-note');
 let downloadSource='auto',downloadLoaded=false;
 const downloadDescription=()=>downloadSource==='auto'?'自动在官方源与国内镜像之间切换。官方源不可达时信任镜像的版本及完整性信息。':'始终使用 npm 官方源下载。';
-let channel='stable',channelLoaded=false,settingsOpening=false,settingsReturn=null,noticeTimer=null;
+let channel='stable',channelLoaded=false,settingsOpening=false,settingsReturn=null,noticeTimer=null,settingsEpoch=0;
+const settingRead=(method)=>{let timer;return Promise.race([Promise.resolve().then(()=>call(method)),new Promise((_,reject)=>{timer=setTimeout(()=>reject(Error('读取超时，请关闭设置后重试')),4000)})]).finally(()=>clearTimeout(timer))};
 function feedback(text,persistent=false) {
  clearTimeout(noticeTimer);notice.textContent=text;notice.hidden=!text;
  if(text&&!persistent)noticeTimer=setTimeout(()=>{notice.hidden=true;notice.textContent=''},6500);
@@ -162,23 +163,29 @@ async function exitForUpdate(){
 async function openData(){if(s.busy)return;try{await call('OpenData')}catch(e){if(settingsDialog.open)channelNote.textContent='无法打开数据目录：'+errorText(e).summary;else void report('无法打开数据目录',e)}}
 refresh.onclick=()=>void check();$('#settings-data').onclick=()=>void openData();
 function renderSettings(){
- channelSelect.value=channelLoaded?channel:'';channelSelect.disabled=s.setting||!channelLoaded||settingsOpening;
- downloadSelect.value=downloadLoaded?downloadSource:'';downloadSelect.disabled=s.setting||!downloadLoaded||settingsOpening;
- settingsClose.disabled=s.setting||settingsOpening;clean.disabled=s.setting||settingsOpening;$('#settings-data').disabled=s.setting||settingsOpening;
+ channelSelect.value=channelLoaded?channel:'';channelSelect.disabled=s.setting||!channelLoaded;
+ downloadSelect.value=downloadLoaded?downloadSource:'';downloadSelect.disabled=s.setting||!downloadLoaded;
+ settingsClose.disabled=s.setting;clean.disabled=s.setting||settingsOpening;$('#settings-data').disabled=s.setting||settingsOpening;
  $('#settings-version').textContent=s.self?.version?'Routilet v'+s.self.version:'Routilet';
 }
 settings.onclick=async()=>{
- if(s.busy||settingsOpening||settingsDialog.open)return;settingsOpening=true;settingsReturn=settings;render();closeMenu();
- channelLoaded=false;downloadLoaded=false;downloadNote.textContent='正在读取设置…';channelNote.textContent='正在读取设置…';renderSettings();settingsDialog.showModal();settingsClose.focus();
- try{channel=await call('Channel');channelLoaded=true;channelNote.textContent='测试版可提前体验新功能，但可能存在问题。切换通道不会自动降级已安装的应用。'}
- catch(e){channelNote.textContent='无法读取通道：'+errorText(e).summary}
- finally{
-  try{downloadSource=await call('DownloadSource');downloadLoaded=true;downloadNote.textContent=downloadDescription()}
-  catch(e){downloadNote.textContent='无法读取下载源：'+errorText(e).summary}
-  settingsOpening=false;renderSettings();render()
+ if(s.busy||settingsOpening||settingsDialog.open)return;settingsOpening=true;const epoch=++settingsEpoch;settingsReturn=settings;render();closeMenu();
+ channelLoaded=false;downloadLoaded=false;
+ channelSelect.options[0].textContent='读取中';downloadSelect.options[0].textContent='读取中';
+ downloadNote.textContent='正在读取设置…';channelNote.textContent='正在读取设置…';renderSettings();settingsDialog.showModal();settingsClose.focus();
+ const current=()=>epoch===settingsEpoch&&settingsDialog.open;
+ async function read(method,select,note,allowed,apply,description){
+  try{const value=await settingRead(method);if(!current())return;if(!allowed.includes(value))throw Error('设置值无效');apply(value);note.textContent=description()}
+  catch(e){if(!current())return;select.options[0].textContent='读取失败';note.textContent=errorText(e).summary+'；关闭设置后可重试。'}
+  finally{if(current())renderSettings()}
  }
+ await Promise.all([
+  read('Channel',channelSelect,channelNote,['stable','test'],v=>{channel=v;channelLoaded=true},()=> '测试版可提前体验新功能，但可能存在问题。切换通道不会自动降级已安装的应用。'),
+  read('DownloadSource',downloadSelect,downloadNote,['auto','official'],v=>{downloadSource=v;downloadLoaded=true},downloadDescription)
+ ]);
+ if(current()){settingsOpening=false;renderSettings();render()}
 };
-function closeSettings(){if(s.setting||settingsOpening)return;settingsDialog.close();settingsReturn?.focus()}
+function closeSettings(){if(s.setting)return;settingsEpoch++;settingsOpening=false;settingsDialog.close();render();settingsReturn?.focus()}
 settingsClose.onclick=closeSettings;settingsDialog.addEventListener('cancel',e=>{e.preventDefault();closeSettings()});
 channelSelect.onchange=async()=>{
  const requested=channelSelect.value;if(!channelLoaded||requested===channel||!s.beginSetting()){renderSettings();return}
