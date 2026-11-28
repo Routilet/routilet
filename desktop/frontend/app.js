@@ -6,7 +6,7 @@ const call=(method,...args)=>Call.ByName('main.Desktop.'+method,...args);
 const s=new Session(),rows=new Map();
 const section=$('#apps'),components=$('#components'),componentList=$('#component-list'),refresh=$('#refresh'),selfAction=$('#self-action'),settings=$('#settings');
 const settingsDialog=$('#settings-dialog'),channelSelect=$('#release-channel'),channelNote=$('#channel-note'),clean=$('#clean'),settingsClose=$('#settings-close');
-const taskPanel=$('#task'),taskStage=$('#task-stage'),taskDetail=$('#task-detail'),taskCancel=$('#task-cancel');
+const taskPanel=$('#task'),taskStage=$('#task-stage'),taskDetail=$('#task-detail'),taskBar=$('#task-bar'),taskCancel=$('#task-cancel');
 const checkStatus=$('#check-status'),notice=$('#notice'),version=$('#version');
 let channel='stable',channelLoaded=false,settingsOpening=false,settingsReturn=null,noticeTimer=null;
 function feedback(text,persistent=false) {
@@ -55,6 +55,12 @@ function render(){
 function renderTask(){
  const p=progressView(s.task,s.task?.progress);taskPanel.hidden=!p;if(!p)return;
  taskStage.textContent=s.task.cancelAccepted?'正在取消…':s.task.label;taskDetail.textContent=p.stage===s.task.label?'正在处理…':p.stage;taskDetail.hidden=false;
+ const d=p.download;taskBar.hidden=!d;
+ if(d){
+  taskBar.max=d.total;taskBar.value=Math.min(d.bytes,d.total*.999);
+  const mb=n=>(n/1e6).toFixed(1);
+  taskDetail.textContent='正在下载文件 · '+mb(d.bytes)+' / '+mb(d.total)+' MB · '+Math.min(99,Math.floor(d.bytes/d.total*100))+'%';
+ }
  
  taskCancel.hidden=!s.task.installing;taskCancel.disabled=!p.cancellable;taskCancel.textContent=s.task.cancelAccepted?'正在取消…':'取消';
 }
