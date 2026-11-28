@@ -257,6 +257,7 @@ func (m *Manager) installExpected(id string,repair bool,expected string)error{
 func (m *Manager) installPackage(snap,pkg,version string)error{return m.installPackageContext(context.Background(),nil,snap,pkg,version)}
 func (m *Manager) installPackageContext(ctx context.Context,job *installJob,snap,pkg,version string)error{
  dependency:=version
+ var accelerationErr error
  // Local test/repair fixtures keep their original local dependency path.
  // Only official, exact registry versions are eligible for mirror acceleration.
  source,sourceErr:=m.downloadSource()
@@ -268,6 +269,7 @@ func (m *Manager) installPackageContext(ctx context.Context,job *installJob,snap
    dependency="file:./"+mirrorArchive
    if job!=nil{job.stage("正在安装已验证的文件…")}
   }else{
+   accelerationErr=mirrorErr
    if job!=nil{job.stage("加速源暂不可用，正在使用官方源下载…")}
   }
  }
@@ -276,6 +278,7 @@ func (m *Manager) installPackageContext(ctx context.Context,job *installJob,snap
  if err=os.WriteFile(filepath.Join(snap,"package.json"),b,0600);err!=nil{return err}
  store,err:=prepareNativeInstall(snap,m.root);if err!=nil{return err}
  _,err=m.pnpmContext(ctx,job,snap,"install","--prod","--ignore-scripts","--no-frozen-lockfile","--registry="+registry,"--store-dir="+store,"--reporter=append-only")
+ if err!=nil&&accelerationErr!=nil&&ctx.Err()==nil{return errors.Join(fmt.Errorf("加速源：%w",accelerationErr),fmt.Errorf("官方源：%w",err))}
  return err
 }
 func (m *Manager) launch(id string)error{
