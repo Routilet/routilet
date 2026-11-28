@@ -10,7 +10,7 @@ const taskPanel=$('#task'),taskStage=$('#task-stage'),taskDetail=$('#task-detail
 const checkStatus=$('#check-status'),notice=$('#notice'),version=$('#version');
 const downloadSelect=$('#download-source'),downloadNote=$('#download-note');
 let downloadSource='auto',downloadLoaded=false;
-const downloadDescription=()=>downloadSource==='auto'?'优先使用国内镜像加速，未同步或不可用时自动回退官方源。':'始终使用 npm 官方源下载。';
+const downloadDescription=()=>downloadSource==='auto'?'自动在官方源与国内镜像之间切换。官方源不可达时信任镜像的版本及完整性信息。':'始终使用 npm 官方源下载。';
 let channel='stable',channelLoaded=false,settingsOpening=false,settingsReturn=null,noticeTimer=null;
 function feedback(text,persistent=false) {
  clearTimeout(noticeTimer);notice.textContent=text;notice.hidden=!text;
