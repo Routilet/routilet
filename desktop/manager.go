@@ -277,7 +277,9 @@ func (m *Manager) installPackageContext(ctx context.Context,job *installJob,snap
  if err=os.WriteFile(filepath.Join(snap,"package.json"),b,0600);err!=nil{return err}
  store,err:=prepareNativeInstall(snap,m.root);if err!=nil{return err}
  install:=func(reg string)error{
-  _,e:=m.pnpmContext(ctx,job,snap,"install","--prod","--ignore-scripts","--no-frozen-lockfile","--registry="+reg,"--store-dir="+store,"--reporter=append-only","--fetch-retries=1","--fetch-retry-mintimeout=1000","--fetch-retry-maxtimeout=3000","--fetch-timeout=30000")
+  attemptCtx:=ctx
+  if reg==mirrorRegistry{var cancel context.CancelFunc;attemptCtx,cancel=context.WithTimeout(ctx,2*time.Minute);defer cancel()}
+  _,e:=m.pnpmContext(attemptCtx,job,snap,"install","--prod","--ignore-scripts","--no-frozen-lockfile","--registry="+reg,"--store-dir="+store,"--reporter=append-only")
   return e
  }
  source,sourceErr:=m.downloadSource()
