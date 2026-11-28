@@ -90,3 +90,23 @@ func TestMirrorProgressUsesMeasuredBytes(t *testing.T){
  j.stage("正在安装已验证的文件…")
  if j.p.DownloadBytes!=0||j.p.DownloadTotal!=0{t.Fatal("stale download progress")}
 }
+
+func TestRegistryFallbackWhenOfficialUnreachable(t *testing.T){
+ const pkg="@routilet/companion";const version="0.2.0-beta.3";const archive="mirror bytes"
+ mirrorCalls:=0
+ m:=&Manager{root:t.TempDir(),client:&http.Client{Transport:mirrorTestTransport(func(r *http.Request)(*http.Response,error){
+  if r.URL.Host=="registry.npmjs.org"{return nil,fmt.Errorf("DNS unavailable")}
+  if r.URL.Host!="registry.npmmirror.com"{return nil,fmt.Errorf("unexpected host")}
+  mirrorCalls++
+  if r.URL.Path=="/tarball.tgz"{return mirrorResponse(r,200,archive),nil}
+  b,_:=json.Marshal(map[string]any{"name":pkg,"version":version,"dist":map[string]string{"integrity":mirrorSRI(archive),"tarball":"https://registry.npmmirror.com/tarball.tgz"}})
+  return mirrorResponse(r,200,string(b)),nil
+ })}}
+ s,_:=spec("companion")
+ if v,e:=m.fetchTag(context.Background(),s,"latest");e!=nil||v!=version{t.Fatal(v,e)}
+ file,e:=m.verifiedMirrorArchive(context.Background(),nil,t.TempDir(),pkg,version);if e!=nil{t.Fatal(e)}
+ if b,e:=os.ReadFile(file);e!=nil||string(b)!=archive{t.Fatal(e)}
+ calls:=mirrorCalls
+ if e=m.setDownloadSource("official");e!=nil{t.Fatal(e)}
+ if _,e=m.fetchTag(context.Background(),s,"latest");e==nil||mirrorCalls!=calls{t.Fatal("official-only queried mirror")}
+}
