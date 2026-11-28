@@ -40,7 +40,7 @@ test('errors have user-readable summary and retain technical detail',()=>{
 
 test('disabled apps remain manageable without install, launch or update',()=>{
  const a={id:'observer',description:'观察',installed:'0.2.0',available:'0.2.1',update:true,releaseStatus:'available',disabled:true};
- assert.equal(appView(a).action,'已禁用');assert.equal(appView(a).manage,true);assert.equal(appView(a).enabled,false);assert.equal(appView(a).update,false);
+ assert.equal(appView(a).action,'已停用');assert.equal(appView(a).manage,true);assert.equal(appView(a).enabled,false);assert.equal(appView(a).update,false);
  assert.equal(appView({...a,installed:''}).manage,true);
  assert.equal(appView({...a,disabled:false}).action,'打开');
  assert.equal(mergeLocal([a],[{...a,disabled:false,releaseStatus:'unknown',update:false}])[0].releaseStatus,'unknown');
@@ -54,3 +54,5 @@ test('optional adapter installs without becoming a launchable GUI',()=>{
  assert.equal(appView({...installed,available:'0.1.0-beta.2',update:true}).update,true);
  assert.equal(appView({...installed,disabled:true,update:true}).update,false);
 });
+
+test('byte progress is optional, not inferred from package counts',()=>{const t={id:'routilet',label:'更新',installing:true};const p={id:'routilet',active:true,total:5,added:3,cancellable:true,stage:'下载与安装'};assert.equal(progressView(t,p).download,null);assert.deepEqual(progressView(t,{...p,downloadBytes:5000000,downloadTotal:20000000}).download,{bytes:5000000,total:20000000});assert.equal(progressView({...t,cancelAccepted:true},{...p,downloadBytes:5000000,downloadTotal:20000000}).download,null)});
