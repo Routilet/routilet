@@ -158,6 +158,8 @@ test('download source setting is persisted separately from release channel',asyn
  const source=p.locator('#download-source');
  await source.waitFor();await p.waitForFunction(()=>!document.querySelector('#download-source').disabled);
  assert.equal(await source.inputValue(),'auto');
+ assert.deepEqual(await source.locator('option').evaluateAll(a=>a.map(o=>o.value)),['auto','official']);
+ assert.deepEqual(await p.locator('#release-channel option').evaluateAll(a=>a.map(o=>o.value)),['stable','test']);
  await source.selectOption('official');
  await p.waitForFunction(()=>fixture.downloadSource==='official'&&!document.querySelector('#download-source').disabled);
  assert.equal(await p.locator('#release-channel').inputValue(),'stable');
@@ -165,6 +167,7 @@ test('download source setting is persisted separately from release channel',asyn
  await p.getByRole('button',{name:'设置',exact:true}).click();
  await p.waitForFunction(()=>!document.querySelector('#download-source').disabled);
  assert.equal(await source.inputValue(),'official');
+ assert.equal(await source.locator('option[value=""]').count(),0);
 });
 
 test('settings reads are independent and a failed download source is not labeled loading',async t=>{
@@ -179,4 +182,21 @@ test('a hung channel read does not block download source or closing settings',as
  const p=await setup(t);await p.evaluate(()=>{const original=window.__bridge;window.__bridge=(method,...args)=>method==='Channel'?new Promise(()=>{}):original(method,...args)});
  await p.getByRole('button',{name:'设置',exact:true}).click();await p.waitForFunction(()=>!document.querySelector('#download-source').disabled);
  assert.equal(await p.locator('#download-source').inputValue(),'auto');await p.getByRole('button',{name:'关闭设置'}).click();assert.equal(await p.locator('#settings-dialog').isVisible(),false);
+});
+
+test('settings placeholder is recreated only during a pending or failed read',async t=>{
+ const p=await setup(t);
+ await p.getByRole('button',{name:'设置',exact:true}).click();
+ await p.waitForFunction(()=>!document.querySelector('#download-source').disabled&&!document.querySelector('#release-channel').disabled);
+ assert.equal(await p.locator('#settings-dialog option[value=""]').count(),0);
+ await p.getByRole('button',{name:'关闭设置'}).click();
+ await p.evaluate(()=>{const original=window.__bridge;window.__bridge=(method,...args)=>method==='DownloadSource'?new Promise(()=>{}):original(method,...args)});
+ await p.getByRole('button',{name:'设置',exact:true}).click();
+ await p.waitForFunction(()=>!document.querySelector('#release-channel').disabled);
+ assert.equal(await p.locator('#release-channel option[value=""]').count(),0);
+ assert.equal(await p.locator('#download-source option[value=""]').textContent(),'读取中');
+ assert.equal(await p.locator('#download-source').isDisabled(),true);
+ await p.waitForFunction(()=>document.querySelector('#download-source option[value=""]')?.textContent==='读取失败',{},{timeout:7000});
+ assert.equal(await p.locator('#download-source').isDisabled(),true);
+ await p.getByRole('button',{name:'关闭设置'}).click();
 });
