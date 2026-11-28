@@ -97,15 +97,27 @@ func (m *Manager) remoteContext(ctx context.Context,s appSpec)(string,error){
  return m.resolveRelease(ctx,s,channel)
 }
 func (m *Manager) fetchTag(ctx context.Context,s appSpec,tag string)(string,error){
- addr:=registry+url.PathEscape(s.Package)+"/"+url.PathEscape(tag)
+ source,e:=m.downloadSource()
+ auto:=e==nil&&source=="auto"
+ timeout:=8*time.Second;if auto{timeout=3*time.Second}
+ v,err:=m.fetchTagFrom(ctx,s,tag,false,timeout)
+ if err==nil||!auto||ctx.Err()!=nil||!errors.Is(err,errRegistryUnavailable){return v,err}
+ v,mirrorErr:=m.fetchTagFrom(ctx,s,tag,true,5*time.Second)
+ if mirrorErr!=nil{return "",errors.Join(fmt.Errorf("官方源：%w",err),fmt.Errorf("镜像源：%w",mirrorErr))}
+ return v,nil
+}
+func (m *Manager) fetchTagFrom(ctx context.Context,s appSpec,tag string,mirror bool,timeout time.Duration)(string,error){
+ base:=registry;if mirror{base=mirrorRegistry}
+ addr:=base+url.PathEscape(s.Package)+"/"+url.PathEscape(tag)
  req,err:=http.NewRequestWithContext(ctx,http.MethodGet,addr,nil);if err!=nil{return "",err}
  req.Header.Set("Accept","application/json")
- r,err:=m.client.Do(req);if err!=nil{return "",err};defer r.Body.Close()
+ r,err:=m.downloadClient(timeout,mirror).Do(req);if err!=nil{return "",fmt.Errorf("%w: %w",errRegistryUnavailable,err)};defer r.Body.Close()
  if r.StatusCode==http.StatusNotFound{return "",nil}
+ if r.StatusCode>=500||r.StatusCode==429{return "",fmt.Errorf("%w: HTTP %d",errRegistryUnavailable,r.StatusCode)}
  if r.StatusCode!=200{return "",fmt.Errorf("软件源 HTTP %d",r.StatusCode)}
- var v struct{Version string}
+ var v struct{Name,Version string}
  if err=json.NewDecoder(io.LimitReader(r.Body,4<<20)).Decode(&v);err!=nil{return "",err}
- if !validRelease(v.Version){return "",errors.New("软件源版本号无效")}
+ if !validRelease(v.Version)||(v.Name!=""&&v.Name!=s.Package){return "",errors.New("软件源身份或版本号无效")}
  return v.Version,nil
 }
 func (m *Manager) list()[]AppState{
