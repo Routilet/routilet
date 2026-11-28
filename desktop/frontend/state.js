@@ -44,6 +44,7 @@ export function progressView(task,p){
  const total=valid&&p.total>0?p.total:0;
  const added=total?Math.min(Math.max(p.added||0,0),total):0;
  return {stage,indeterminate:!total,total,added,cancellable:valid&&p.cancellable&&!task.cancelRequested&&!task.cancelAccepted,
+ download:valid&&p.downloadTotal>0&&p.downloadBytes>=0&&p.downloadBytes<=p.downloadTotal&&!task.cancelAccepted?{bytes:p.downloadBytes,total:p.downloadTotal}:null,
  detail:total?'已添加 '+added+' / '+total+' 个包':valid&&p.resolved>0?'已解析 '+p.resolved+' · 下载 '+p.downloaded+' · 复用 '+p.reused:''};
 }
 export function errorText(e) {
